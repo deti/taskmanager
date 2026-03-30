@@ -110,3 +110,4 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+addopts = "-v --tb=short"
