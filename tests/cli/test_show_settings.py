@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from taskmanager.cli.show_settings import main
+from taskmanager.cli.show_settings import show_settings
 from taskmanager.settings import Settings, get_settings
 
 
@@ -34,7 +34,7 @@ def test_show_settings_main_function():
     # Capture stdout by temporarily redirecting it
     f = io.StringIO()
     with redirect_stdout(f):
-        main()
+        show_settings()
 
     output = f.getvalue().strip()
 
@@ -118,7 +118,7 @@ def test_show_settings_json_format():
     """Test that output is properly formatted JSON with indentation."""
     f = io.StringIO()
     with redirect_stdout(f):
-        main()
+        show_settings()
 
     output = f.getvalue()
 
@@ -147,7 +147,7 @@ def test_show_settings_script_entry_point():
             sys.executable,
             "-c",
             f"import sys; sys.path.insert(0, r'{SRC_PATH}'); "
-            "from taskmanager.cli.show_settings import main; main()",
+            "from taskmanager.cli.show_settings import show_settings; show_settings()",
         ],
         capture_output=True,
         text=True,

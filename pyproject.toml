@@ -12,7 +12,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "typer>=0.12",  # [all] extra removed in typer 0.14+; rich/shellingham/click are now default deps
+    "typer[all]>=0.12",
     "pydantic-settings>=2.0",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -39,8 +39,9 @@ dev = [
 bugs = "https://github.com/deti/taskmanager"
 
 [project.scripts]
-show-settings = "taskmanager.cli.show_settings:main"
-serve = "taskmanager.cli.serve:main"
+taskmanager = "taskmanager.cli:main"
+show-settings = "taskmanager.cli.show_settings:show_settings"
+serve = "taskmanager.cli.serve:serve"
 
 # Configure hatchling to find packages in src/
 [tool.hatch.build.targets.wheel]

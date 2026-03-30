@@ -1,8 +1,9 @@
 """CLI command to serve the API proxy."""
 
 import logging
+from typing import Annotated
 
-import click
+import typer
 import uvicorn
 
 from taskmanager.main import app
@@ -12,21 +13,16 @@ from taskmanager.settings import get_settings
 logger = logging.getLogger(__name__)
 
 
-@click.command()
-@click.option(
-    "--host",
-    "-h",
-    default=None,
-    help="Host address to bind the API server.",
-)
-@click.option(
-    "--port",
-    "-p",
-    default=None,
-    type=int,
-    help="Port number to bind the API server.",
-)
-def main(host: str | None, port: int | None) -> None:
+def serve(
+    host: Annotated[
+        str | None,
+        typer.Option("--host", "-h", help="Host address to bind the API server."),
+    ] = None,
+    port: Annotated[
+        int | None,
+        typer.Option("--port", "-p", help="Port number to bind the API server."),
+    ] = None,
+) -> None:
     """Start the API server with configured host and port."""
     settings = get_settings()
 
@@ -53,4 +49,4 @@ def main(host: str | None, port: int | None) -> None:
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry point
-    main()
+    serve()

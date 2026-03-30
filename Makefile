@@ -37,8 +37,7 @@ test-cov:  ## Run tests with coverage
 	uv run pytest tests/ --cov=src/taskmanager --cov-report=html --cov-report=term-missing
 
 lint:  ## Run linting
-	uv run ruff check --fix src/ tests/
-	uv run ruff format src/ tests/
+	uv run ruff check .
 
 format:  ## Run code formatter
 	uv run ruff format .

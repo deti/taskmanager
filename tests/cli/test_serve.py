@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from taskmanager.cli.serve import main
+from taskmanager.cli.serve import serve
 from taskmanager.settings import Settings, get_settings
 
 
@@ -28,7 +28,7 @@ def clear_settings_cache():
 
 @patch("taskmanager.cli.serve.uvicorn.run")
 def test_serve_main_function(mock_uvicorn_run):
-    """Test that main function calls uvicorn with correct parameters."""
+    """Test that serve function calls uvicorn with correct parameters."""
     # Mock the settings to return specific values
     with patch(
         "taskmanager.cli.serve.get_settings",
@@ -39,8 +39,8 @@ def test_serve_main_function(mock_uvicorn_run):
         mock_settings.log_level = "INFO"
         mock_get_settings.return_value = mock_settings
 
-        # Call the underlying function
-        main.callback(host=None, port=None)
+        # Call the function directly
+        serve(host=None, port=None)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
@@ -65,8 +65,8 @@ def test_serve_with_custom_host_and_port(mock_uvicorn_run, monkeypatch):
     # Clear cache to pick up new env vars
     get_settings.cache_clear()
 
-    # Call the underlying function
-    main.callback(host=None, port=None)
+    # Call the function directly
+    serve(host=None, port=None)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
@@ -86,8 +86,8 @@ def test_serve_with_debug_log_level(mock_uvicorn_run, monkeypatch):
     # Clear cache to pick up new env vars
     get_settings.cache_clear()
 
-    # Call the underlying function
-    main.callback(host=None, port=None)
+    # Call the function directly
+    serve(host=None, port=None)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
@@ -99,13 +99,14 @@ def test_serve_with_debug_log_level(mock_uvicorn_run, monkeypatch):
 
 def test_serve_module_can_be_imported():
     """Test that the serve module can be imported and has the expected structure."""
-    # Import at module level to avoid PLC0415 warning
-    import taskmanager.cli.serve  # noqa: PLC0415
+    from importlib import import_module  # noqa: PLC0415
+
+    serve_module = import_module("taskmanager.cli.serve")
 
     # Verify the module has the expected attributes
-    assert hasattr(taskmanager.cli.serve, "main")
-    assert callable(taskmanager.cli.serve.main)
-    assert hasattr(taskmanager.cli.serve, "app")
+    assert hasattr(serve_module, "serve")
+    assert callable(serve_module.serve)
+    assert hasattr(serve_module, "app")
 
 
 def test_serve_settings_defaults():
@@ -134,8 +135,8 @@ def test_serve_with_port_as_string_converted(mock_uvicorn_run, monkeypatch):
     # Clear cache to pick up new env vars
     get_settings.cache_clear()
 
-    # Call the underlying function
-    main.callback(host=None, port=None)
+    # Call the function directly
+    serve(host=None, port=None)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
@@ -156,8 +157,8 @@ def test_serve_with_cli_host_parameter(mock_uvicorn_run):
         mock_settings.log_level = "INFO"
         mock_get_settings.return_value = mock_settings
 
-        # Call the underlying function with host parameter
-        main.callback(host="0.0.0.0", port=None)
+        # Call the function with host parameter
+        serve(host="0.0.0.0", port=None)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
@@ -178,8 +179,8 @@ def test_serve_with_cli_port_parameter(mock_uvicorn_run):
         mock_settings.log_level = "INFO"
         mock_get_settings.return_value = mock_settings
 
-        # Call the underlying function with port parameter
-        main.callback(host=None, port=9000)
+        # Call the function with port parameter
+        serve(host=None, port=9000)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
@@ -200,8 +201,8 @@ def test_serve_with_cli_host_and_port_parameters(mock_uvicorn_run):
         mock_settings.log_level = "INFO"
         mock_get_settings.return_value = mock_settings
 
-        # Call the underlying function with both parameters
-        main.callback(host="192.168.1.1", port=9999)
+        # Call the function with both parameters
+        serve(host="192.168.1.1", port=9999)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
@@ -222,8 +223,8 @@ def test_serve_with_cli_no_parameters_uses_settings(mock_uvicorn_run):
         mock_settings.log_level = "DEBUG"
         mock_get_settings.return_value = mock_settings
 
-        # Call the underlying function without parameters
-        main.callback(host=None, port=None)
+        # Call the function without parameters
+        serve(host=None, port=None)
 
     # Verify uvicorn.run was called
     assert mock_uvicorn_run.called
