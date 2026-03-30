@@ -63,7 +63,8 @@ exclude = [
     ".svn", ".tox", ".venv", "__pypackages__", "_build",
     "buck-out", "build", "dist", "node_modules", "venv",
 ]
-line-length = 88
+target-version = "py312"
+line-length = 99
 indent-width = 4
 
 [tool.ruff.lint]
