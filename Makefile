@@ -6,6 +6,9 @@
 	test \
 	test-cov \
 	lint \
+	format \
+	typecheck \
+	check \
 	clean \
 	show-settings \
 	serve
@@ -37,6 +40,14 @@ lint:  ## Run linting
 	uv run ruff check --fix src/ tests/
 	uv run ruff format src/ tests/
 
+format:  ## Run code formatter
+	uv run ruff format .
+
+typecheck:  ## Run type checking
+	uv run mypy src/
+
+check: lint typecheck test  ## Run lint, typecheck, and test in sequence
+
 clean:  ## Clean up generated files
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
@@ -46,6 +57,7 @@ clean:  ## Clean up generated files
 	rm -rf htmlcov/
 	rm -rf .pytest_cache/
 	rm -rf .ruff_cache/
+	rm -rf .mypy_cache/
 
 show-settings:  ## Show current application settings
 	uv run show-settings
