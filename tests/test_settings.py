@@ -92,3 +92,104 @@ def test_invalid_log_level_raises(monkeypatch):
 
     with pytest.raises(ValidationError):
         Settings()
+
+# TOML configuration tests
+
+
+@pytest.fixture
+def mock_config_file(monkeypatch, tmp_path):
+    """Mock the config file path to use a temporary directory."""
+    temp_config = tmp_path / "config.toml"
+    monkeypatch.setattr(
+        "taskmanager.settings._get_config_file_path",
+        lambda: temp_config
+    )
+    return temp_config
+
+
+def test_toml_file_not_exist(mock_config_file):
+    """Missing TOML config file should not raise error (graceful fallback)."""
+    assert not mock_config_file.exists()
+    s = Settings()
+    assert s.app_name == "taskmanager"
+    assert s.log_format == "text"
+
+
+def test_toml_loads_successfully(mock_config_file):
+    """Valid TOML config should be loaded and applied."""
+    mock_config_file.write_text("""
+app_name = "my-taskmanager"
+debug = true
+log_level = "DEBUG"
+log_format = "json"
+default_shell = "/bin/zsh"
+history_retention_days = 60
+api_host = "0.0.0.0"
+api_port = 9000
+""")
+    s = Settings()
+    assert s.app_name == "my-taskmanager"
+    assert s.debug is True
+    assert s.log_level == "DEBUG"
+    assert s.log_format == "json"
+    assert s.default_shell == "/bin/zsh"
+    assert s.history_retention_days == 60
+    assert s.api_host == "0.0.0.0"
+    assert s.api_port == 9000
+
+
+def test_env_overrides_toml(monkeypatch, mock_config_file):
+    """Environment variables should override TOML config values."""
+    mock_config_file.write_text("""
+app_name = "toml-app"
+log_level = "WARNING"
+log_format = "json"
+""")
+    monkeypatch.setenv("APP_NAME", "env-app")
+    monkeypatch.setenv("LOG_LEVEL", "ERROR")
+    s = Settings()
+    assert s.app_name == "env-app"
+    assert s.log_level == "ERROR"
+    assert s.log_format == "json"
+
+
+def test_toml_overrides_defaults(monkeypatch, mock_config_file):
+    """TOML config should override defaults when env vars not set."""
+    mock_config_file.write_text("""
+log_format = "json"
+default_shell = "/bin/fish"
+""")
+    for key in ["LOG_FORMAT", "DEFAULT_SHELL"]:
+        monkeypatch.delenv(key, raising=False)
+    s = Settings()
+    assert s.log_format == "json"
+    assert s.default_shell == "/bin/fish"
+
+
+def test_invalid_toml_syntax_raises(mock_config_file):
+    """Invalid TOML syntax should produce clear error."""
+    mock_config_file.write_text("""
+app_name = "test"
+invalid syntax here!
+""")
+    # TOML syntax error is wrapped in a Pydantic ValidationError
+    with pytest.raises(ValidationError, match="Invalid TOML syntax"):
+        Settings()
+
+
+def test_invalid_toml_field_value_raises(mock_config_file):
+    """Invalid field values in TOML should raise ValidationError."""
+    mock_config_file.write_text("""
+log_format = "xml"
+""")
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_negative_port_raises(mock_config_file):
+    """Negative port number should raise ValidationError."""
+    mock_config_file.write_text("""
+api_port = -1
+""")
+    with pytest.raises(ValidationError):
+        Settings()
