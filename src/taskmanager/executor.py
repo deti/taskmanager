@@ -99,7 +99,8 @@ def execute_task(task: Task, db: Session) -> Run:  # noqa: PLR0915
 
     Notes
     -----
-    - Timeout is configured via settings.subprocess_timeout (default: 300s)
+    - Timeout defaults to settings.subprocess_timeout (default: 300s)
+    - Timeout plugins can override via run.timeout_override attribute
     - On timeout, status is set to FAILED with an error_message
     - Command snapshot is frozen at execution time (not affected by later Task edits)
     - Duration is measured in milliseconds with high precision
@@ -152,12 +153,24 @@ def execute_task(task: Task, db: Session) -> Run:  # noqa: PLR0915
         },
     )
 
+    # Check if timeout plugin set an override
+    timeout = getattr(run, "timeout_override", settings.subprocess_timeout)
+    if hasattr(run, "timeout_override"):
+        logger.info(
+            "task.timeout_override",
+            task_name=task.name,
+            task_id=task.id,
+            run_id=run.id,
+            timeout_seconds=timeout,
+            default_timeout=settings.subprocess_timeout,
+        )
+
     # Execute the command
     start_time = time.perf_counter()
 
     try:
         exit_code, stdout, stderr, duration_ms = _execute_subprocess(
-            task.command, task.shell, settings.subprocess_timeout
+            task.command, task.shell, timeout
         )
 
         # Update Run with results
@@ -223,9 +236,7 @@ def execute_task(task: Task, db: Session) -> Run:  # noqa: PLR0915
         run.status = RunStatus.FAILED
         run.duration_ms = duration_ms
         run.finished_at = datetime.now(UTC)
-        run.error_message = (
-            f"Command timed out after {settings.subprocess_timeout} seconds"
-        )
+        run.error_message = f"Command timed out after {timeout} seconds"
 
         logger.exception(
             "task.timeout",
@@ -233,7 +244,7 @@ def execute_task(task: Task, db: Session) -> Run:  # noqa: PLR0915
             task_id=task.id,
             run_id=run.id,
             duration_ms=duration_ms,
-            timeout=settings.subprocess_timeout,
+            timeout=timeout,
             status="timeout",
         )
 
@@ -245,7 +256,7 @@ def execute_task(task: Task, db: Session) -> Run:  # noqa: PLR0915
                 "run_id": run.id,
                 "task_name": task.name,
                 "duration_ms": duration_ms,
-                "timeout_seconds": settings.subprocess_timeout,
+                "timeout_seconds": timeout,
                 "timestamp": datetime.now(UTC),
             },
         )
