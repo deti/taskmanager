@@ -234,10 +234,13 @@ def list_command(
             # We need to join with tasks to get task names
             for run in runs:
                 # Get task name for this run
-                task_stmt = select(Task).where(Task.id == run.task_id)
-                task_result = session.execute(task_stmt)
-                task_obj = task_result.scalar_one_or_none()
-                task_name = task_obj.name if task_obj else "(unknown)"
+                if run.task_id is None:
+                    task_name = "(inline)"
+                else:
+                    task_stmt = select(Task).where(Task.id == run.task_id)
+                    task_result = session.execute(task_stmt)
+                    task_obj = task_result.scalar_one_or_none()
+                    task_name = task_obj.name if task_obj else "(unknown)"
 
                 # Format row data
                 run_id_short = run.id[:8]
@@ -271,10 +274,13 @@ def show(
             run = _get_run_by_id_or_short(session, run_id)
 
             # Get task name
-            task_stmt = select(Task).where(Task.id == run.task_id)
-            task_result = session.execute(task_stmt)
-            task_obj = task_result.scalar_one_or_none()
-            task_name = task_obj.name if task_obj else "(unknown)"
+            if run.task_id is None:
+                task_name = "(inline)"
+            else:
+                task_stmt = select(Task).where(Task.id == run.task_id)
+                task_result = session.execute(task_stmt)
+                task_obj = task_result.scalar_one_or_none()
+                task_name = task_obj.name if task_obj else "(unknown)"
 
             # Access all attributes inside session context
             run_id_full = run.id

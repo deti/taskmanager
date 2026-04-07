@@ -206,6 +206,75 @@ class TestRunList:
         assert "Duration" in result.stdout
         assert "Started At" in result.stdout
 
+    def test_list_inline_run(self, setup_db, mock_db):
+        """Test listing inline runs (task_id is None)."""
+        # Create an inline run
+        inline_run = Run(
+            task_id=None,
+            status=RunStatus.SUCCESS,
+            command_snapshot="echo inline",
+            started_at=datetime(2026, 4, 7, 10, 0, 0, tzinfo=UTC),
+            finished_at=datetime(2026, 4, 7, 10, 0, 1, tzinfo=UTC),
+            exit_code=0,
+            stdout="inline\n",
+            stderr="",
+            duration_ms=1000,
+        )
+        mock_db.add(inline_run)
+        mock_db.commit()
+        mock_db.refresh(inline_run)
+
+        result = runner.invoke(app, ["run", "list"])
+
+        assert result.exit_code == 0
+        # Check that the inline run is displayed with "(inline)" in Task column
+        assert inline_run.id[:8] in result.stdout
+        assert "(inline)" in result.stdout
+
+    def test_list_mixed_runs(self, setup_db, mock_db, sample_task):
+        """Test listing both task-based and inline runs together."""
+        # Create a task-based run
+        task_run = Run(
+            task_id=sample_task.id,
+            status=RunStatus.SUCCESS,
+            command_snapshot="echo task",
+            started_at=datetime(2026, 4, 7, 10, 0, 0, tzinfo=UTC),
+            finished_at=datetime(2026, 4, 7, 10, 0, 1, tzinfo=UTC),
+            exit_code=0,
+            stdout="task\n",
+            stderr="",
+            duration_ms=1000,
+        )
+        mock_db.add(task_run)
+
+        # Create an inline run
+        inline_run = Run(
+            task_id=None,
+            status=RunStatus.SUCCESS,
+            command_snapshot="echo inline",
+            started_at=datetime(2026, 4, 7, 10, 1, 0, tzinfo=UTC),
+            finished_at=datetime(2026, 4, 7, 10, 1, 1, tzinfo=UTC),
+            exit_code=0,
+            stdout="inline\n",
+            stderr="",
+            duration_ms=1000,
+        )
+        mock_db.add(inline_run)
+        mock_db.commit()
+        mock_db.refresh(task_run)
+        mock_db.refresh(inline_run)
+
+        result = runner.invoke(app, ["run", "list"])
+
+        assert result.exit_code == 0
+        # Both runs should be displayed
+        assert task_run.id[:8] in result.stdout
+        assert inline_run.id[:8] in result.stdout
+        # Task-based run should show task name
+        assert "test_task" in result.stdout
+        # Inline run should show "(inline)"
+        assert "(inline)" in result.stdout
+
 
 class TestRunShow:
     """Tests for the 'run show' command."""
@@ -275,6 +344,33 @@ class TestRunShow:
         assert "Duration:" in result.stdout
         assert "Started At:" in result.stdout
         assert "Finished At:" in result.stdout
+
+    def test_show_inline_run(self, setup_db, mock_db):
+        """Test showing an inline run (task_id is None)."""
+        # Create an inline run
+        inline_run = Run(
+            task_id=None,
+            status=RunStatus.SUCCESS,
+            command_snapshot="echo inline",
+            started_at=datetime(2026, 4, 7, 10, 0, 0, tzinfo=UTC),
+            finished_at=datetime(2026, 4, 7, 10, 0, 1, tzinfo=UTC),
+            exit_code=0,
+            stdout="inline\n",
+            stderr="",
+            duration_ms=1000,
+        )
+        mock_db.add(inline_run)
+        mock_db.commit()
+        mock_db.refresh(inline_run)
+
+        result = runner.invoke(app, ["run", "show", inline_run.id])
+
+        assert result.exit_code == 0
+        # Check that inline run displays "(inline)" for task name
+        assert inline_run.id in result.stdout
+        assert "Task: (inline)" in result.stdout
+        assert "echo inline" in result.stdout
+        assert "success" in result.stdout
 
 
 class TestRunLogs:
