@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from taskmanager.api.app import create_app
 from taskmanager.database import Base
-from taskmanager.main import app
 from taskmanager.models import Task
 
 
@@ -60,6 +60,8 @@ def test_client() -> TestClient:
     # Ensure we're in test environment
     os.environ["ENVIRONMENT"] = "test"
 
+    # Use app factory instead of importing app directly
+    app = create_app()
     return TestClient(app)
 
 
