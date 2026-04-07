@@ -4,6 +4,7 @@ This module provides the application factory function for creating configured
 FastAPI instances with middleware, exception handlers, and route registration.
 """
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from taskmanager.api.routers.health import router as health_router
 from taskmanager.api.routers.runs import router as runs_router
 from taskmanager.api.routers.schedules import router as schedules_router
 from taskmanager.api.routers.tasks import router as tasks_router
@@ -26,12 +28,16 @@ from taskmanager.logging import setup_logging
 from taskmanager.settings import get_settings
 
 
+# Application startup timestamp for uptime calculation (used by /api/health endpoint)
+APP_STARTUP_TIME: float | None = None
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifecycle (startup and shutdown).
 
     This context manager handles:
-    - Startup: Configure logging
+    - Startup: Configure logging and track startup time
     - Shutdown: Clean up resources
 
     Args:
@@ -40,7 +46,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     Yields:
         None: Control returns to the application to handle requests.
     """
-    # Startup: Configure logging
+    # Startup: Configure logging and track startup time
+    global APP_STARTUP_TIME
+    APP_STARTUP_TIME = time.time()
+
     settings = get_settings()
     setup_logging(settings)
 
@@ -56,7 +65,7 @@ def create_app() -> FastAPI:
     - Lifespan context manager for startup/shutdown
     - CORS middleware (allow all origins for development)
     - Global exception handlers for domain exceptions
-    - Health check endpoint
+    - Health and info endpoints (via health router)
     - OpenAPI documentation
 
     Returns:
@@ -216,17 +225,8 @@ def create_app() -> FastAPI:
             },
         )
 
-    # Health check endpoint
-    @app.get("/health", tags=["health"])
-    async def health_check() -> dict[str, str]:
-        """Health check endpoint.
-
-        Returns:
-            dict: Status indicator with "ok" value.
-        """
-        return {"status": "ok"}
-
     # Register routers
+    app.include_router(health_router)
     app.include_router(tasks_router)
     app.include_router(runs_router)
     app.include_router(schedules_router)
