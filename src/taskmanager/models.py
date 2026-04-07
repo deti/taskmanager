@@ -50,7 +50,12 @@ class Task(Base):
 
 
 class Run(Base):
-    """A single execution of a task."""
+    """A single execution of a task.
+
+    Runs can be associated with a registered task (task_id is set) or inline
+    (task_id is None). Inline runs execute a command directly without requiring
+    a task to be registered first.
+    """
 
     __tablename__ = "runs"
 
@@ -59,10 +64,11 @@ class Run(Base):
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
     )
-    task_id: Mapped[str] = mapped_column(
+    task_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("tasks.id"),
-        nullable=False,
+        nullable=True,
+        default=None,
     )
     status: Mapped[RunStatus] = mapped_column(
         Enum(RunStatus),
