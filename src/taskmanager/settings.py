@@ -54,6 +54,10 @@ class Settings(BaseSettings):
         default="sqlite:///~/.taskmanager/taskmanager.db",
         description="Database URL for SQLAlchemy engine.",
     )
+    subprocess_timeout: int = Field(
+        default=300,
+        description="Default timeout in seconds for subprocess execution.",
+    )
     # Pydantic v2 settings config
     model_config = SettingsConfigDict(
         # Read .env from the project root

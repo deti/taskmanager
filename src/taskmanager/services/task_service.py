@@ -84,9 +84,7 @@ def get_task(session: Session, task_id: str) -> Task:
     task = result.scalar_one_or_none()
 
     if task is None:
-        # Type ignore needed: TaskNotFoundError expects int but Task.id is str (UUID)
-        # TODO: core-domain crew should update TaskNotFoundError to accept str | int
-        raise TaskNotFoundError(task_id)  # type: ignore[arg-type]
+        raise TaskNotFoundError(task_id)
 
     return task
 
