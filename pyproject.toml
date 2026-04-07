@@ -44,6 +44,10 @@ taskmanager = "taskmanager.cli:main"
 show-settings = "taskmanager.cli.show_settings:show_settings"
 serve = "taskmanager.cli.serve:serve"
 
+[project.entry-points."taskmanager.plugins"]
+retry = "taskmanager.plugins.builtin.retry:retry_plugin"
+timeout = "taskmanager.plugins.builtin.timeout:timeout_plugin"
+
 # Configure hatchling to find packages in src/
 [tool.hatch.build.targets.wheel]
 packages = ["src/taskmanager"]
