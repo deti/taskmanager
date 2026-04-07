@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 import uvicorn
 
-from taskmanager.main import app
+from taskmanager.api.app import create_app
 from taskmanager.settings import get_settings
 
 
@@ -30,11 +30,9 @@ def serve(
     server_host = host if host is not None else settings.host
     server_port = port if port is not None else settings.port
 
-    # Configure logging
-    logging.basicConfig(
-        level=settings.log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    # Create the FastAPI application instance
+    # Logging is configured via the app's lifespan context manager
+    app = create_app()
 
     logger.info(
         f"Starting API server on {server_host}:{server_port}",
