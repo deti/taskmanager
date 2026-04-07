@@ -210,4 +210,5 @@ __marimo__/
 .vibe/
 .fleet/plans/
 .fleet/tasks/
+.fleet/tool-usage.jsonl
 .fleet-worktrees/
