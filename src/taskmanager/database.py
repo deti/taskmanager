@@ -7,8 +7,9 @@ and a ``get_db`` context manager for obtaining scoped sessions.
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from taskmanager.settings import get_settings
@@ -46,7 +47,18 @@ def get_engine(url: str | None = None) -> Engine:
         if db_path and db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-    return create_engine(db_url)
+    engine = create_engine(db_url)
+
+    # Enable foreign key constraints for SQLite.
+    if db_url.startswith(prefix):
+
+        @event.listens_for(engine, "connect")
+        def _set_sqlite_pragma(dbapi_conn: Any, connection_record: Any) -> None:  # noqa: ARG001
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+    return engine
 
 
 def get_session_factory(url: str | None = None) -> sessionmaker[Session]:
