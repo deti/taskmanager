@@ -67,6 +67,30 @@ def get_session_factory(url: str | None = None) -> sessionmaker[Session]:
     return sessionmaker(bind=engine)
 
 
+def check_db_connection(url: str | None = None) -> bool:
+    """Check if database connection is available.
+
+    Used by health check endpoints to verify DB connectivity without raising exceptions.
+    Always returns a boolean and never propagates exceptions to the caller.
+
+    Parameters
+    ----------
+    url:
+        Optional database URL. If None, uses default from settings.
+
+    Returns
+    -------
+    bool:
+        True if connection succeeds, False if any exception occurs.
+    """
+    try:
+        engine = get_engine(url)
+        with engine.connect():
+            return True
+    except Exception:
+        return False
+
+
 @contextmanager
 def get_db(url: str | None = None) -> Iterator[Session]:
     """Yield a SQLAlchemy session and ensure it is closed on exit.
