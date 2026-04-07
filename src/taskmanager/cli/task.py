@@ -1,0 +1,203 @@
+"""Task management CLI commands.
+
+This module provides the task sub-command with CRUD operations for tasks.
+"""
+
+from typing import Annotated
+
+import typer
+from rich.console import Console
+from rich.table import Table
+
+from taskmanager.database import get_db
+from taskmanager.exceptions import DuplicateTaskError, TaskNotFoundError
+from taskmanager.services.task_service import (
+    create_task,
+    delete_task,
+    get_task_by_name,
+    list_tasks,
+    update_task,
+)
+
+
+app = typer.Typer(help="Manage tasks — add, list, show, edit, remove.")
+console = Console()
+console_err = Console(stderr=True)
+
+
+@app.command()
+def add(
+    name: Annotated[str, typer.Option("--name", help="Unique task name")],
+    command: Annotated[str, typer.Option("--command", help="Shell command to execute")],
+    description: Annotated[
+        str | None,
+        typer.Option("--description", help="Optional task description"),
+    ] = None,
+    shell: Annotated[
+        str,
+        typer.Option("--shell", help="Shell to use for execution"),
+    ] = "/bin/sh",
+) -> None:
+    """Add a new task to the registry."""
+    try:
+        with get_db() as session:
+            task = create_task(
+                session=session,
+                name=name,
+                command=command,
+                description=description,
+                shell=shell,
+            )
+            console.print(
+                f"[green]✓[/green] Task '{task.name}' created (ID: {task.id})"
+            )
+    except DuplicateTaskError as e:
+        console_err.print(f"[red]Error:[/red] {e.message}")
+        raise typer.Exit(code=1) from None
+
+
+@app.command(name="list")
+def list_command() -> None:
+    """List all registered tasks."""
+    with get_db() as session:
+        tasks = list_tasks(session)
+
+    if not tasks:
+        console.print("[yellow]No tasks found.[/yellow]")
+        return
+
+    table = Table(title="Registered Tasks")
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Command", style="magenta")
+    table.add_column("Created At", style="green")
+
+    for task in tasks:
+        # Truncate command if too long
+        cmd_display = (
+            task.command if len(task.command) <= 50 else task.command[:47] + "..."
+        )
+        created_at_str = task.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        table.add_row(task.name, cmd_display, created_at_str)
+
+    console.print(table)
+
+
+@app.command()
+def show(
+    name: Annotated[str, typer.Argument(help="Task name to display")],
+) -> None:
+    """Show full details of a task."""
+    try:
+        with get_db() as session:
+            task = get_task_by_name(session, name)
+
+        if task is None:
+            console_err.print(f"[red]Error:[/red] Task '{name}' not found")
+            raise typer.Exit(code=1) from None
+
+        console.print(f"\n[bold cyan]Task: {task.name}[/bold cyan]")
+        console.print(f"[dim]ID:[/dim] {task.id}")
+        console.print(f"[dim]Command:[/dim] {task.command}")
+        console.print(f"[dim]Shell:[/dim] {task.shell}")
+        if task.description:
+            console.print(f"[dim]Description:[/dim] {task.description}")
+        console.print(
+            f"[dim]Created:[/dim] {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        console.print(
+            f"[dim]Updated:[/dim] {task.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        )
+    except Exception as e:
+        console_err.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+
+
+@app.command()
+def edit(
+    name: Annotated[str, typer.Argument(help="Task name to edit")],
+    new_name: Annotated[
+        str | None,
+        typer.Option("--name", help="New task name"),
+    ] = None,
+    command: Annotated[
+        str | None,
+        typer.Option("--command", help="New command"),
+    ] = None,
+    description: Annotated[
+        str | None,
+        typer.Option("--description", help="New description"),
+    ] = None,
+    shell: Annotated[
+        str | None,
+        typer.Option("--shell", help="New shell"),
+    ] = None,
+) -> None:
+    """Edit an existing task (partial updates supported)."""
+    try:
+        with get_db() as session:
+            task = get_task_by_name(session, name)
+
+            if task is None:
+                console_err.print(f"[red]Error:[/red] Task '{name}' not found")
+                raise typer.Exit(code=1) from None
+
+            # Build updates dict
+            updates = {}
+            if new_name is not None:
+                updates["name"] = new_name
+            if command is not None:
+                updates["command"] = command
+            if description is not None:
+                updates["description"] = description
+            if shell is not None:
+                updates["shell"] = shell
+
+            if not updates:
+                console.print(
+                    "[yellow]No updates provided. Use --name, --command, --description, or --shell.[/yellow]"
+                )
+                return
+
+            updated_task = update_task(session, task.id, **updates)
+            console.print(f"[green]✓[/green] Task '{updated_task.name}' updated")
+
+    except DuplicateTaskError as e:
+        console_err.print(f"[red]Error:[/red] {e.message}")
+        raise typer.Exit(code=1) from None
+    except TaskNotFoundError as e:
+        console_err.print(f"[red]Error:[/red] {e.message}")
+        raise typer.Exit(code=1) from None
+
+
+@app.command()
+def remove(
+    name: Annotated[str, typer.Argument(help="Task name to remove")],
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Skip confirmation prompt"),
+    ] = False,
+) -> None:
+    """Remove a task from the registry."""
+    try:
+        with get_db() as session:
+            task = get_task_by_name(session, name)
+
+            if task is None:
+                console_err.print(f"[red]Error:[/red] Task '{name}' not found")
+                raise typer.Exit(code=1) from None
+
+            # Confirmation prompt unless --yes was provided
+            if not yes:
+                confirmed = typer.confirm(
+                    f"Are you sure you want to remove task '{name}'?"
+                )
+                if not confirmed:
+                    console.print("[yellow]Cancelled.[/yellow]")
+                    raise typer.Exit(code=0)
+
+            delete_task(session, task.id)
+            console.print(f"[green]✓[/green] Task '{name}' removed")
+
+    except TaskNotFoundError as e:
+        console_err.print(f"[red]Error:[/red] {e.message}")
+        raise typer.Exit(code=1) from None
