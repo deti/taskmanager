@@ -141,3 +141,67 @@ class ScheduleValidationError(ValueError):
         """
         self.message = message
         super().__init__(self.message)
+
+
+class HookNotFoundError(Exception):
+    """Raised when a hook lookup by name fails.
+
+    This exception is raised by the service layer when attempting to
+    retrieve, update, or delete a hook that does not exist in the database.
+
+    Attributes:
+        name: The name of the hook that was not found.
+        message: Formatted error message.
+    """
+
+    def __init__(self, name: str) -> None:
+        """Initialize the exception.
+
+        Args:
+            name: The name of the hook that was not found.
+        """
+        self.name = name
+        self.message = f"Hook with name '{name}' not found"
+        super().__init__(self.message)
+
+
+class DuplicateHookError(ValueError):
+    """Raised when attempting to create a hook with a duplicate name.
+
+    This exception is raised by the service layer when trying to create
+    a new hook with a name that already exists in the database.
+
+    Attributes:
+        name: The duplicate hook name.
+        message: Formatted error message.
+    """
+
+    def __init__(self, name: str) -> None:
+        """Initialize the exception.
+
+        Args:
+            name: The duplicate hook name.
+        """
+        self.name = name
+        self.message = f"Hook with name '{name}' already exists"
+        super().__init__(self.message)
+
+
+class HookValidationError(ValueError):
+    """Raised when hook action configuration is invalid.
+
+    This exception is raised by the service layer when the action_config
+    JSON does not match the expected schema for the action type.
+
+    Attributes:
+        message: Formatted error message.
+    """
+
+    def __init__(self, message: str) -> None:
+        """Initialize the exception.
+
+        Args:
+            message: Description of the validation error.
+        """
+        self.message = message
+        super().__init__(self.message)
