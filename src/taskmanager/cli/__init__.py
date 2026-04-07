@@ -3,6 +3,7 @@
 import typer
 
 from taskmanager.cli.config import app as config_app
+from taskmanager.cli.hook import app as hook_app
 from taskmanager.cli.run import app as run_app
 from taskmanager.cli.schedule import app as schedule_app
 from taskmanager.cli.serve import serve
@@ -17,6 +18,7 @@ app.add_typer(task_app, name="task")
 app.add_typer(run_app, name="run")
 app.add_typer(config_app, name="config")
 app.add_typer(schedule_app, name="schedule")
+app.add_typer(hook_app, name="hook")
 
 
 def main() -> None:
