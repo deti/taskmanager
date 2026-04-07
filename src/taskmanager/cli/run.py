@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from taskmanager.database import get_db
 from taskmanager.exceptions import RunNotFoundError, TaskNotFoundError
+from taskmanager.executor import execute_inline
 from taskmanager.models import Run, RunStatus, Task
 from taskmanager.services.run_service import get_run, list_runs
 from taskmanager.services.task_service import get_task_by_name
@@ -124,6 +125,52 @@ def _status_color(status: RunStatus) -> str:
         RunStatus.CANCELLED: "dim",
     }
     return color_map.get(status, "white")
+
+
+@app.command()
+def exec(
+    command: Annotated[str, typer.Argument(help="Command to execute")],
+) -> None:
+    """Execute a command inline and show results immediately."""
+    try:
+        with get_db() as session:
+            # Execute the command
+            run = execute_inline(command, session)
+
+            # Access attributes inside session context
+            run_id = run.id
+            exit_code = run.exit_code or 0
+            stdout = run.stdout or ""
+            stderr = run.stderr or ""
+
+    except Exception as e:
+        console_err.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+
+    # Print output after session closes
+    console.print("\n[bold cyan]STDOUT:[/bold cyan]")
+    if stdout.strip():
+        console.print(stdout)
+    else:
+        console.print("[dim](empty)[/dim]")
+
+    console.print("\n[bold cyan]STDERR:[/bold cyan]")
+    if stderr.strip():
+        console.print(stderr)
+    else:
+        console.print("[dim](empty)[/dim]")
+
+    # Print status footer
+    console.print(f"\n[dim]Run ID: {run_id[:8]}[/dim]")
+
+    # Print success/failure message with exit code
+    if exit_code == 0:
+        console.print(f"[green]✓[/green] Command completed successfully (exit code: {exit_code})")
+    else:
+        console.print(f"[red]✗[/red] Command failed (exit code: {exit_code})")
+
+    # Exit with the command's exit code
+    raise typer.Exit(code=exit_code)
 
 
 @app.command(name="list")
