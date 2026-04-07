@@ -9,9 +9,10 @@ survive application restarts.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
+from apscheduler.events import EVENT_JOB_MISSED  # type: ignore[import-untyped]
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore  # type: ignore[import-untyped]
 from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore[import-untyped]
 from apscheduler.triggers.cron import CronTrigger  # type: ignore[import-untyped]
@@ -20,6 +21,7 @@ from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import
 from sqlalchemy.orm import Session
 
 from taskmanager.database import get_db
+from taskmanager.events import SCHEDULE_MISSED, SCHEDULE_TRIGGERED, get_event_bus
 from taskmanager.executor import execute_task
 from taskmanager.logging import get_logger
 from taskmanager.models import Schedule, Task, TriggerType
@@ -45,6 +47,17 @@ def _execute_task_job(task_id: str) -> None:
         if task is None:
             logger.error("scheduler.task_not_found", task_id=task_id)
             return
+
+        # Emit schedule triggered event
+        bus = get_event_bus()
+        bus.emit(
+            SCHEDULE_TRIGGERED,
+            {
+                "task_id": task_id,
+                "task_name": task.name,
+                "timestamp": datetime.now(UTC),
+            },
+        )
 
         logger.info("scheduler.job_executing", task_id=task_id, task_name=task.name)
         execute_task(task, db)
@@ -116,7 +129,42 @@ class TaskScheduler:
             },
         )
 
+        # Add listener for missed jobs
+        self._scheduler.add_listener(
+            self._handle_missed_job,
+            EVENT_JOB_MISSED,
+        )
+
         logger.info("scheduler.initialized", db_url=settings.db_url)
+
+    def _handle_missed_job(self, event: Any) -> None:
+        """Handle missed job events from APScheduler.
+
+        Parameters
+        ----------
+        event:
+            APScheduler JobExecutionEvent with job_id and scheduled_run_time.
+        """
+        # Extract job details
+        job_id = event.job_id
+        scheduled_time = event.scheduled_run_time
+
+        # Emit SCHEDULE_MISSED event
+        bus = get_event_bus()
+        bus.emit(
+            SCHEDULE_MISSED,
+            {
+                "task_id": job_id,
+                "scheduled_time": scheduled_time,
+                "timestamp": datetime.now(UTC),
+            },
+        )
+
+        logger.warning(
+            "scheduler.job_missed",
+            job_id=job_id,
+            scheduled_time=scheduled_time,
+        )
 
     @classmethod
     def get_instance(cls) -> "TaskScheduler":
@@ -187,13 +235,14 @@ class TaskScheduler:
             msg = f"Task {schedule.task_id} not found for schedule {schedule.id}"
             raise SchedulerError(msg)
 
-        # Add job to APScheduler
+        # Add job to APScheduler with misfire grace time
         job = self._scheduler.add_job(
             func=_execute_task_job,
             trigger=trigger,
             id=schedule.id,
             args=[schedule.task_id],
             replace_existing=True,
+            misfire_grace_time=60,  # Allow 60 seconds for missed executions
         )
 
         # Update next_run_at from APScheduler
