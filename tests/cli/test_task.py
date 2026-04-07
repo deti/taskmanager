@@ -22,12 +22,14 @@ def setup_db(db_engine):
 
 
 @pytest.fixture
-def mock_db(db_session: Session, monkeypatch):
+def mock_db(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> Session:
     """Mock get_db to return the test session."""
+    from collections.abc import Iterator
     from contextlib import contextmanager
+    from typing import Any
 
     @contextmanager
-    def _get_test_db():
+    def _get_test_db() -> Iterator[Session]:
         try:
             yield db_session
             db_session.commit()
@@ -35,7 +37,14 @@ def mock_db(db_session: Session, monkeypatch):
             db_session.rollback()
             raise
 
+    def _get_test_settings() -> Any:
+        """Mock settings for executor."""
+        return type("obj", (object,), {"subprocess_timeout": 5})()
+
     monkeypatch.setattr("taskmanager.cli.task.get_db", _get_test_db)
+    monkeypatch.setattr("taskmanager.cli.run.get_db", _get_test_db)
+    # Also mock for executor module
+    monkeypatch.setattr("taskmanager.executor.get_settings", _get_test_settings)
     return db_session
 
 
@@ -373,3 +382,46 @@ class TestTaskIntegration:
         result = runner.invoke(app, ["task", "list"])
         assert result.exit_code == 0
         assert "No tasks found" in result.stdout
+
+
+class TestTaskExec:
+    """Tests for the 'task exec' command."""
+
+    def test_exec_success(self, setup_db, mock_db):
+        """Test executing a task that succeeds."""
+        # Create a task that will succeed (exit code 0)
+        create_task(mock_db, name="success_task", command="echo 'hello world'")
+
+        result = runner.invoke(app, ["task", "exec", "success_task"])
+
+        assert result.exit_code == 0
+        # Check that run ID is printed (8 chars)
+        assert "Run" in result.stdout
+        # Check that success status is shown
+        assert "✓" in result.stdout
+        assert "completed successfully" in result.stdout
+
+    def test_exec_failure(self, setup_db, mock_db):
+        """Test executing a task that fails."""
+        # Create a task that will fail (exit code 1)
+        create_task(mock_db, name="fail_task", command="exit 1")
+
+        result = runner.invoke(app, ["task", "exec", "fail_task"])
+
+        # Exit code should be non-zero (the task's exit code)
+        assert result.exit_code != 0
+        # Check that run ID is printed
+        assert "Run" in result.stdout
+        # Check that failure status is shown
+        assert "✗" in result.stdout
+        assert "failed" in result.stdout
+
+    def test_exec_task_not_found(self, setup_db, mock_db):
+        """Test executing a non-existent task."""
+        result = runner.invoke(app, ["task", "exec", "nonexistent"])
+
+        assert result.exit_code == 1
+        # Error messages go to stderr
+        output = result.stdout + result.stderr
+        assert "Error:" in output
+        assert "not found" in output

@@ -47,3 +47,25 @@ class DuplicateTaskError(ValueError):
         self.name = name
         self.message = f"Task with name '{name}' already exists"
         super().__init__(self.message)
+
+
+class RunNotFoundError(Exception):
+    """Raised when a run lookup by ID fails.
+
+    This exception is raised by the service layer when attempting to
+    retrieve a run that does not exist in the database.
+
+    Attributes:
+        run_id: The ID of the run that was not found.
+        message: Formatted error message.
+    """
+
+    def __init__(self, run_id: str) -> None:
+        """Initialize the exception.
+
+        Args:
+            run_id: The ID of the run that was not found (UUID string).
+        """
+        self.run_id = run_id
+        self.message = f"Run with ID {run_id} not found"
+        super().__init__(self.message)

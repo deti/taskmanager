@@ -11,6 +11,7 @@ from rich.table import Table
 
 from taskmanager.database import get_db
 from taskmanager.exceptions import DuplicateTaskError, TaskNotFoundError
+from taskmanager.executor import execute_task
 from taskmanager.services.task_service import (
     create_task,
     delete_task,
@@ -203,6 +204,42 @@ def remove(
 
             delete_task(session, task.id)
             console.print(f"[green]✓[/green] Task '{name}' removed")
+
+    except TaskNotFoundError as e:
+        console_err.print(f"[red]Error:[/red] {e.message}")
+        raise typer.Exit(code=1) from None
+
+
+@app.command()
+def exec(
+    name: Annotated[str, typer.Argument(help="Task name to execute")],
+) -> None:
+    """Execute a task by name."""
+    try:
+        with get_db() as session:
+            task = get_task_by_name(session, name)
+
+            if task is None:
+                console_err.print(f"[red]Error:[/red] Task '{name}' not found")
+                raise typer.Exit(code=1) from None
+
+            # Execute the task
+            run = execute_task(task, session)
+
+            # Access attributes inside session context to avoid DetachedInstanceError
+            run_id_short = run.id[:8]
+            status = run.status
+            exit_code = run.exit_code or 1
+
+        # Print result after session closes
+        if status.value == "success":
+            console.print(
+                f"[green]✓[/green] Run {run_id_short} completed successfully"
+            )
+            raise typer.Exit(code=0)
+
+        console.print(f"[red]✗[/red] Run {run_id_short} failed")
+        raise typer.Exit(code=exit_code)
 
     except TaskNotFoundError as e:
         console_err.print(f"[red]Error:[/red] {e.message}")
