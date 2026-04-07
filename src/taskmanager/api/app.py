@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from taskmanager.api.routers.tasks import router as tasks_router
 from taskmanager.exceptions import (
     DuplicateTaskError,
     ScheduleNotFoundError,
@@ -153,6 +154,7 @@ def create_app() -> FastAPI:
         """
         return {"status": "ok"}
 
-    # TODO(Wave 3): Register task routers here
+    # Register task router
+    app.include_router(tasks_router)
 
     return app

@@ -98,6 +98,7 @@ known-first-party = ["taskmanager"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["RUF001", "ARG002", "PLC0415"]
 "src/taskmanager/cli/*.py" = ["TRY301"]
+"src/taskmanager/api/**/*.py" = ["B008"]  # FastAPI Depends() in defaults is standard pattern
 
 [tool.mypy]
 python_version = "3.12"
