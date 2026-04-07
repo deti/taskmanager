@@ -48,10 +48,13 @@ def test_create_app_returns_fastapi_instance() -> None:
 
 
 def test_health_endpoint_returns_200(client: TestClient) -> None:
-    """Test that /health endpoint returns 200 with status ok."""
-    response = client.get("/health")
+    """Test that /api/health endpoint returns 200 with healthy status."""
+    response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert "checks" in data
+    assert "uptime_seconds" in data
 
 
 def test_openapi_docs_accessible(client: TestClient) -> None:
@@ -67,14 +70,14 @@ def test_openapi_docs_accessible(client: TestClient) -> None:
     schema = openapi_response.json()
     assert schema["info"]["title"] == "TaskManager API"
     assert schema["info"]["version"] == "0.1.0"
-    assert "/health" in schema["paths"]
+    assert "/api/health" in schema["paths"]
 
 
 def test_cors_headers_present(client: TestClient) -> None:
     """Test that CORS headers are present in responses."""
     # Make a request with Origin header
     response = client.get(
-        "/health",
+        "/api/health",
         headers={"Origin": "http://localhost:3000"},
     )
 
@@ -88,7 +91,7 @@ def test_cors_headers_present(client: TestClient) -> None:
 def test_cors_preflight_request(client: TestClient) -> None:
     """Test that CORS preflight (OPTIONS) requests work correctly."""
     response = client.options(
-        "/health",
+        "/api/health",
         headers={
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "GET",
@@ -170,13 +173,13 @@ def test_exception_handlers_registered_before_routers() -> None:
 
 
 def test_health_endpoint_in_openapi_schema(client: TestClient) -> None:
-    """Test that /health endpoint appears in OpenAPI schema with correct metadata."""
+    """Test that /api/health endpoint appears in OpenAPI schema with correct metadata."""
     openapi_response = client.get("/openapi.json")
     schema = openapi_response.json()
 
-    # Check /health endpoint is documented
-    assert "/health" in schema["paths"]
-    health_endpoint = schema["paths"]["/health"]
+    # Check /api/health endpoint is documented
+    assert "/api/health" in schema["paths"]
+    health_endpoint = schema["paths"]["/api/health"]
 
     # Check it has a GET operation
     assert "get" in health_endpoint
