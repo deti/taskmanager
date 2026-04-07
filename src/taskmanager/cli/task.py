@@ -62,22 +62,23 @@ def list_command() -> None:
     with get_db() as session:
         tasks = list_tasks(session)
 
-    if not tasks:
-        console.print("[yellow]No tasks found.[/yellow]")
-        return
+        if not tasks:
+            console.print("[yellow]No tasks found.[/yellow]")
+            return
 
-    table = Table(title="Registered Tasks")
-    table.add_column("Name", style="cyan", no_wrap=True)
-    table.add_column("Command", style="magenta")
-    table.add_column("Created At", style="green")
+        table = Table(title="Registered Tasks")
+        table.add_column("Name", style="cyan", no_wrap=True)
+        table.add_column("Command", style="magenta")
+        table.add_column("Created At", style="green")
 
-    for task in tasks:
-        # Truncate command if too long
-        cmd_display = (
-            task.command if len(task.command) <= 50 else task.command[:47] + "..."
-        )
-        created_at_str = task.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        table.add_row(task.name, cmd_display, created_at_str)
+        for task in tasks:
+            # Truncate command if too long
+            # Access all attributes INSIDE the session context to avoid DetachedInstanceError
+            cmd_display = (
+                task.command if len(task.command) <= 50 else task.command[:47] + "..."
+            )
+            created_at_str = task.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            table.add_row(task.name, cmd_display, created_at_str)
 
     console.print(table)
 
@@ -91,22 +92,23 @@ def show(
         with get_db() as session:
             task = get_task_by_name(session, name)
 
-        if task is None:
-            console_err.print(f"[red]Error:[/red] Task '{name}' not found")
-            raise typer.Exit(code=1) from None
+            if task is None:
+                console_err.print(f"[red]Error:[/red] Task '{name}' not found")
+                raise typer.Exit(code=1) from None
 
-        console.print(f"\n[bold cyan]Task: {task.name}[/bold cyan]")
-        console.print(f"[dim]ID:[/dim] {task.id}")
-        console.print(f"[dim]Command:[/dim] {task.command}")
-        console.print(f"[dim]Shell:[/dim] {task.shell}")
-        if task.description:
-            console.print(f"[dim]Description:[/dim] {task.description}")
-        console.print(
-            f"[dim]Created:[/dim] {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        console.print(
-            f"[dim]Updated:[/dim] {task.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        )
+            # Access all attributes INSIDE the session context to avoid DetachedInstanceError
+            console.print(f"\n[bold cyan]Task: {task.name}[/bold cyan]")
+            console.print(f"[dim]ID:[/dim] {task.id}")
+            console.print(f"[dim]Command:[/dim] {task.command}")
+            console.print(f"[dim]Shell:[/dim] {task.shell}")
+            if task.description:
+                console.print(f"[dim]Description:[/dim] {task.description}")
+            console.print(
+                f"[dim]Created:[/dim] {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            console.print(
+                f"[dim]Updated:[/dim] {task.updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
     except Exception as e:
         console_err.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1) from None
@@ -159,7 +161,11 @@ def edit(
                 return
 
             updated_task = update_task(session, task.id, **updates)
-            console.print(f"[green]✓[/green] Task '{updated_task.name}' updated")
+            # Access name attribute inside session context to avoid DetachedInstanceError
+            task_name = updated_task.name
+
+        # Print success message after session closes
+        console.print(f"[green]✓[/green] Task '{task_name}' updated")
 
     except DuplicateTaskError as e:
         console_err.print(f"[red]Error:[/red] {e.message}")
