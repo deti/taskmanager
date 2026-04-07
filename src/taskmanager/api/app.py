@@ -11,10 +11,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from taskmanager.api.routers.runs import router as runs_router
+from taskmanager.api.routers.schedules import router as schedules_router
 from taskmanager.api.routers.tasks import router as tasks_router
 from taskmanager.exceptions import (
+    DuplicateScheduleError,
     DuplicateTaskError,
+    RunNotFoundError,
     ScheduleNotFoundError,
+    ScheduleValidationError,
     TaskNotFoundError,
 )
 from taskmanager.logging import setup_logging
@@ -144,6 +149,73 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.exception_handler(RunNotFoundError)
+    async def run_not_found_handler(
+        _request: Request, exc: RunNotFoundError
+    ) -> JSONResponse:
+        """Handle RunNotFoundError by returning 404 Not Found.
+
+        Args:
+            _request: The incoming request (unused but required by signature).
+            exc: The run not found exception.
+
+        Returns:
+            JSONResponse with 404 status code and error details.
+        """
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": "Not Found",
+                "message": exc.message,
+                "detail": {"run_id": exc.run_id},
+            },
+        )
+
+    @app.exception_handler(DuplicateScheduleError)
+    async def duplicate_schedule_handler(
+        _request: Request, exc: DuplicateScheduleError
+    ) -> JSONResponse:
+        """Handle DuplicateScheduleError by returning 409 Conflict.
+
+        Args:
+            _request: The incoming request (unused but required by signature).
+            exc: The duplicate schedule exception.
+
+        Returns:
+            JSONResponse with 409 status code and error details.
+        """
+        trigger_value = getattr(exc.trigger_type, "value", str(exc.trigger_type))
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": "Conflict",
+                "message": exc.message,
+                "detail": {"task_id": exc.task_id, "trigger_type": trigger_value},
+            },
+        )
+
+    @app.exception_handler(ScheduleValidationError)
+    async def schedule_validation_handler(
+        _request: Request, exc: ScheduleValidationError
+    ) -> JSONResponse:
+        """Handle ScheduleValidationError by returning 422 Unprocessable Entity.
+
+        Args:
+            _request: The incoming request (unused but required by signature).
+            exc: The schedule validation exception.
+
+        Returns:
+            JSONResponse with 422 status code and error details.
+        """
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "Unprocessable Entity",
+                "message": exc.message,
+                "detail": {},
+            },
+        )
+
     # Health check endpoint
     @app.get("/health", tags=["health"])
     async def health_check() -> dict[str, str]:
@@ -154,7 +226,9 @@ def create_app() -> FastAPI:
         """
         return {"status": "ok"}
 
-    # Register task router
+    # Register routers
     app.include_router(tasks_router)
+    app.include_router(runs_router)
+    app.include_router(schedules_router)
 
     return app

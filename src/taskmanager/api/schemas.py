@@ -4,12 +4,13 @@ This module defines all request and response schemas used by the API endpoints.
 Schemas handle validation, serialization, and ORM model conversion.
 """
 
+import json
 from datetime import datetime
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from taskmanager.models import RunStatus
+from taskmanager.models import RunStatus, TriggerType
 
 
 class TaskCreate(BaseModel):
@@ -135,3 +136,65 @@ class PaginatedResponse(BaseModel, Generic[T]):  # noqa: UP046
     page_size: int = Field(..., ge=1, description="Number of items per page")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RunLogsResponse(BaseModel):
+    """Schema for task run logs response."""
+
+    stdout: str = Field(default="", description="Standard output from the run")
+    stderr: str = Field(default="", description="Standard error from the run")
+
+
+class ScheduleCreate(BaseModel):
+    """Schema for creating a new schedule."""
+
+    task_id: str = Field(..., description="UUID of the task to schedule")
+    trigger_type: TriggerType = Field(..., description="Type of trigger (cron, interval, once)")
+    trigger_config: dict[str, Any] = Field(
+        ..., description="Configuration for the trigger type (JSON object)"
+    )
+    enabled: bool = Field(default=True, description="Whether the schedule is enabled")
+
+
+class ScheduleUpdate(BaseModel):
+    """Schema for updating an existing schedule.
+
+    All fields are optional to support partial updates.
+    """
+
+    trigger_config: dict[str, Any] | None = Field(
+        None, description="New trigger configuration (JSON object)"
+    )
+    enabled: bool | None = Field(None, description="New enabled status")
+
+
+class ScheduleResponse(BaseModel):
+    """Schema for schedule response data."""
+
+    id: str = Field(..., description="Unique schedule identifier (UUID)")
+    task_id: str = Field(..., description="Associated task ID (UUID)")
+    trigger_type: TriggerType = Field(..., description="Type of trigger")
+    trigger_config: dict[str, Any] = Field(..., description="Trigger configuration (parsed from JSON)")
+    enabled: bool = Field(..., description="Whether the schedule is enabled")
+    last_run_at: datetime | None = Field(None, description="Last execution timestamp")
+    next_run_at: datetime | None = Field(None, description="Next scheduled execution timestamp")
+    created_at: datetime = Field(..., description="Schedule creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("trigger_config", mode="before")
+    @classmethod
+    def parse_trigger_config(cls, v: Any) -> dict[str, Any]:
+        """Parse trigger_config from JSON string if needed.
+
+        The Schedule model stores trigger_config as a JSON string in the database,
+        but the API should return it as a parsed dictionary.
+        """
+        if isinstance(v, str):
+            parsed: dict[str, Any] = json.loads(v)
+            return parsed
+        if isinstance(v, dict):
+            return v
+        msg = f"trigger_config must be a string or dict, got {type(v)}"
+        raise ValueError(msg)
