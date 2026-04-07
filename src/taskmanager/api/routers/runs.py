@@ -7,11 +7,12 @@ This module provides REST endpoints for querying task execution history:
 """
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from taskmanager.api.deps import get_db
 from taskmanager.api.schemas import PaginatedResponse, RunLogsResponse, RunResponse
-from taskmanager.models import RunStatus
+from taskmanager.models import Run, RunStatus
 from taskmanager.services import run_service
 
 
@@ -47,7 +48,16 @@ async def list_runs(
         GET /api/runs?task_id=123e4567-e89b-12d3-a456-426614174000&status=success&limit=10
         Returns up to 10 successful runs for the specified task.
     """
-    # Query runs with filters
+    # Build count query with same filters (no limit)
+    count_stmt = select(func.count()).select_from(Run)
+    if task_id is not None:
+        count_stmt = count_stmt.where(Run.task_id == task_id)
+    if status is not None:
+        count_stmt = count_stmt.where(Run.status == status)
+
+    total = db.scalar(count_stmt) or 0
+
+    # Query runs with filters and limit
     runs = run_service.list_runs(
         session=db,
         task_id=task_id,
@@ -58,12 +68,9 @@ async def list_runs(
     # Convert to response models
     run_responses = [RunResponse.model_validate(run) for run in runs]
 
-    # Note: For true pagination, we'd need total count and page/page_size.
-    # The current service API returns filtered results up to limit,
-    # so we return them with total=len(runs), page=1, page_size=limit.
     return PaginatedResponse(
         items=run_responses,
-        total=len(run_responses),
+        total=total,
         page=1,
         page_size=limit,
     )

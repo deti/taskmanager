@@ -299,8 +299,8 @@ def test_list_runs_respects_limit(client: TestClient, sample_runs: list[Run]) ->
 
     assert response.status_code == 200
     json_data = response.json()
-    assert len(json_data["items"]) == 2
-    assert json_data["total"] == 2
+    assert len(json_data["items"]) == 2  # Only 2 items returned
+    assert json_data["total"] == 3  # But total count is 3 (all runs in DB)
     assert json_data["page_size"] == 2
 
 
@@ -310,8 +310,8 @@ def test_list_runs_limit_minimum(client: TestClient, sample_runs: list[Run]) -> 
 
     assert response.status_code == 200
     json_data = response.json()
-    assert len(json_data["items"]) == 1
-    assert json_data["total"] == 1
+    assert len(json_data["items"]) == 1  # Only 1 item returned
+    assert json_data["total"] == 3  # But total count is 3 (all runs in DB)
     assert json_data["page_size"] == 1
 
 
@@ -336,6 +336,40 @@ def test_list_runs_combined_filters(
     assert json_data["total"] == 1
     assert json_data["items"][0]["status"] == "success"
     assert json_data["items"][0]["task_id"] == sample_task.id
+
+
+def test_list_runs_total_count_with_limit(
+    client: TestClient, test_session: Session, sample_task: Task
+) -> None:
+    """Test GET /api/runs returns correct total count when limit is less than total.
+
+    This verifies the fix for the pagination bug where total was incorrectly
+    set to len(items) instead of the actual database count.
+    """
+    # Create 10 runs
+    for i in range(10):
+        run = Run(
+            task_id=sample_task.id,
+            command_snapshot=f"echo 'test {i}'",
+            status=RunStatus.SUCCESS,
+            exit_code=0,
+            stdout=f"output {i}",
+            stderr="",
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            duration_ms=100,
+        )
+        test_session.add(run)
+    test_session.commit()
+
+    # Request only 3 runs
+    response = client.get("/api/runs?limit=3")
+
+    assert response.status_code == 200
+    json_data = response.json()
+    assert len(json_data["items"]) == 3  # Only 3 items returned
+    assert json_data["total"] == 10  # But total should show all 10
+    assert json_data["page_size"] == 3
 
 
 # ============================================================================
