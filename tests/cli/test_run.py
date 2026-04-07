@@ -373,6 +373,75 @@ class TestRunShow:
         assert "success" in result.stdout
 
 
+class TestRunExec:
+    """Tests for the 'run exec' command."""
+
+    def test_exec_success(self, setup_db, mock_db):
+        """Test inline execution success."""
+        result = runner.invoke(app, ["run", "exec", "echo hello"])
+
+        assert result.exit_code == 0
+        # Check stdout section contains "hello"
+        assert "hello" in result.stdout
+        # Check that run ID is displayed
+        assert "Run ID:" in result.stdout
+        # Check success message
+        assert "Command completed successfully" in result.stdout
+        assert "exit code: 0" in result.stdout
+
+    def test_exec_failure(self, setup_db, mock_db):
+        """Test inline execution failure."""
+        result = runner.invoke(app, ["run", "exec", "exit 1"])
+
+        assert result.exit_code == 1
+        # Check failure message
+        assert "Command failed" in result.stdout
+        assert "exit code: 1" in result.stdout
+
+    def test_exec_with_stderr(self, setup_db, mock_db):
+        """Test inline execution with stderr."""
+        # Use a shell command that writes to stderr
+        result = runner.invoke(app, ["run", "exec", "sh -c 'echo error >&2'"])
+
+        # Command may succeed with exit code 0
+        assert "STDERR:" in result.stdout
+        assert "error" in result.stdout
+
+    def test_exec_appears_in_list(self, setup_db, mock_db):
+        """Test inline run appears in list with (inline) marker."""
+        # Execute an inline command
+        exec_result = runner.invoke(app, ["run", "exec", "echo test"])
+        assert exec_result.exit_code == 0
+
+        # List all runs
+        list_result = runner.invoke(app, ["run", "list"])
+
+        assert list_result.exit_code == 0
+        # Check that inline run appears with "(inline)" marker
+        assert "(inline)" in list_result.stdout
+
+    def test_exec_in_show_command(self, setup_db, mock_db):
+        """Test inline run appears correctly in show command."""
+        # Execute an inline command and capture run ID
+        exec_result = runner.invoke(app, ["run", "exec", "echo show_test"])
+        assert exec_result.exit_code == 0
+
+        # Extract run ID from output (format: "Run ID: <8-char-id>")
+        import re
+        match = re.search(r"Run ID: ([a-f0-9]{8})", exec_result.stdout)
+        assert match is not None
+        run_id = match.group(1)
+
+        # Show the run
+        show_result = runner.invoke(app, ["run", "show", run_id])
+
+        assert show_result.exit_code == 0
+        # Check that task is displayed as "(inline)"
+        assert "Task: (inline)" in show_result.stdout
+        # Check that command snapshot is displayed
+        assert "echo show_test" in show_result.stdout
+
+
 class TestRunLogs:
     """Tests for the 'run logs' command."""
 
