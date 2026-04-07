@@ -208,4 +208,6 @@ __marimo__/
 
 .claude/
 .vibe/
-.fleet/
+.fleet/plans/
+.fleet/tasks/
+.fleet-worktrees/

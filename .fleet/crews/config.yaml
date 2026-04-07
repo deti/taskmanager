@@ -1,0 +1,39 @@
+schema_version: 1
+name: config
+domain: Application configuration — Settings schema, environment variable loading, .env integration, and cached accessor.
+description: Owns settings.py (Settings class, get_settings, PROJECT_ROOT constant) and the env.template documentation file. Responsible for the full configuration contract.
+last_run_commit: ""
+
+paths:
+  - src/taskmanager/settings.py
+  - env.template
+  - tests/test_settings.py
+
+partners:
+  - api
+  - cli
+  - persistence
+
+sdlc_concerns:
+  - security
+  - correctness
+  - testing
+  - documentation
+
+owner_context: |
+  Sensitive values (future secrets, DB passwords) must use SecretStr.
+  Literal-constrained fields must stay in sync with consumers. LRU cache
+  must be cleared between tests. env.template must stay current with every
+  new field added to Settings.
+
+tech_stack:
+  - Python 3.12+
+  - pydantic-settings 2.x
+  - Pydantic v2
+
+monitoring:
+  dashboards: []
+  alerts: []
+
+deployment:
+  type: none

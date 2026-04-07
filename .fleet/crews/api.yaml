@@ -1,0 +1,41 @@
+schema_version: 1
+name: api
+domain: FastAPI application, route handlers, request/response schemas, and HTTP error mapping.
+description: Owns the FastAPI app instance, all route definitions and endpoint handlers, Pydantic request/response schemas, and HTTP-level exception handlers that translate domain exceptions to HTTP status codes.
+last_run_commit: ""
+
+paths:
+  - src/taskmanager/main.py
+  - src/taskmanager/routers/**/*.py
+  - src/taskmanager/schemas/**/*.py
+  - tests/test_main.py
+
+partners:
+  - task-service
+  - config
+  - cli
+
+sdlc_concerns:
+  - correctness
+  - security
+  - testing
+  - openapi
+  - performance
+
+owner_context: |
+  HTTP status codes must map exactly to domain exceptions. Input validation
+  via Pydantic; no trust of raw request data. Async handlers; avoid blocking
+  calls in event loop. Keep generated OpenAPI schema clean.
+
+tech_stack:
+  - Python 3.12+
+  - FastAPI 0.115+
+  - Pydantic v2
+  - httpx + ASGITransport
+
+monitoring:
+  dashboards: []
+  alerts: []
+
+deployment:
+  type: none

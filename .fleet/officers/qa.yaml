@@ -1,0 +1,31 @@
+schema_version: 1
+name: qa
+title: QA Officer
+domain: Quality Assurance
+tier: default
+
+expertise:
+  - test strategy
+  - coverage analysis
+  - test design
+  - integration testing
+  - contract testing
+  - performance testing
+
+triggers:
+  - qa
+  - testing
+  - quality
+  - coverage
+  - regression
+
+review_checklist:
+  - New code has corresponding tests
+  - Tests cover both happy path and error cases
+  - No flaky or timing-dependent tests
+  - Test naming follows conventions
+  - Integration tests isolated from unit tests
+
+signals:
+  - "tests/ directory exists"
+  - "all 6 crews declare testing as an SDLC concern"

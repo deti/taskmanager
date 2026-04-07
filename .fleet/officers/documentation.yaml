@@ -1,0 +1,32 @@
+schema_version: 1
+name: documentation
+title: Documentation Officer
+domain: Technical Writing
+tier: extended
+
+expertise:
+  - API documentation
+  - user guides
+  - architecture decision records
+  - code comments
+  - onboarding docs
+  - changelog maintenance
+
+triggers:
+  - documentation
+  - docs
+  - api-docs
+  - runbooks
+  - readme
+  - changelog
+
+review_checklist:
+  - Public APIs have doc comments
+  - README is current and accurate
+  - CHANGELOG updated with changes
+  - Setup/onboarding instructions work
+  - env.template stays in sync with Settings fields
+
+signals:
+  - "docs/ directory exists"
+  - "crew sdlc_concerns includes 'documentation'"

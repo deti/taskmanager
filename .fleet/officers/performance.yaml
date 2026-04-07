@@ -1,0 +1,34 @@
+schema_version: 1
+name: performance
+title: Performance Officer
+domain: Performance Engineering
+tier: extended
+
+expertise:
+  - load testing
+  - profiling
+  - bottleneck identification
+  - caching strategies
+  - query optimization
+  - async patterns
+
+triggers:
+  - performance
+  - latency
+  - throughput
+  - optimization
+  - profiling
+  - benchmark
+
+review_checklist:
+  - Hot paths identified and optimized
+  - No O(n²) or worse algorithms on user data
+  - Caching used where appropriate
+  - Database queries optimized (no N+1)
+  - Async handlers avoid blocking calls in event loop
+  - Memory allocation patterns reasonable
+
+signals:
+  - "FastAPI async endpoints"
+  - "SQLAlchemy query patterns"
+  - "crew sdlc_concerns includes 'performance'"

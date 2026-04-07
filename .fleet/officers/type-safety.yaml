@@ -1,0 +1,30 @@
+schema_version: 1
+name: type-safety
+title: Type Safety Officer
+domain: Static Type Analysis
+tier: extended
+
+expertise:
+  - mypy strict mode
+  - type annotation completeness
+  - generic type usage
+  - Protocol and structural subtyping
+  - sentinel patterns for optional fields
+
+triggers:
+  - type_safety
+  - mypy
+  - typing
+  - annotations
+  - type-check
+
+review_checklist:
+  - All public symbols fully annotated
+  - mypy strict passes with no errors
+  - No use of Any where a concrete type is possible
+  - Generic types used correctly (not too broad, not too narrow)
+  - Return types explicit, not inferred
+
+signals:
+  - "mypy configured in pyproject.toml"
+  - "crew sdlc_concerns includes 'type_safety'"

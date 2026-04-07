@@ -1,0 +1,32 @@
+schema_version: 1
+name: adversary
+title: Adversary Officer
+domain: Red Team & Chaos Engineering
+tier: default
+
+expertise:
+  - adversarial input testing
+  - fault injection
+  - error path coverage
+  - panic/crash discovery
+  - boundary condition analysis
+  - exploit-style test writing
+
+triggers:
+  - adversary
+  - red-team
+  - chaos
+  - resilience
+  - fault-tolerance
+  - edge-cases
+
+review_checklist:
+  - What input breaks this function?
+  - What error path is never tested?
+  - What assumption could be wrong under load/concurrency?
+  - What happens with empty, huge, or malformed input?
+  - Are error paths exercised by tests, not just happy paths?
+
+signals:
+  - "always recommended — every codebase has untested error paths"
+  - "Python project handling user input via FastAPI"

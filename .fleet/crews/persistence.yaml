@@ -1,0 +1,38 @@
+schema_version: 1
+name: persistence
+domain: Database engine setup, session factory, migrations, and connection lifecycle.
+description: Owns everything that touches the database connection — SQLAlchemy engine creation, session context manager, table creation, Alembic migrations, and database-level test fixtures.
+last_run_commit: ""
+
+paths:
+  - src/taskmanager/database.py
+  - src/taskmanager/migrations/**
+  - tests/test_database.py
+
+partners:
+  - core-domain
+  - task-service
+  - config
+
+sdlc_concerns:
+  - data_integrity
+  - security
+  - testing
+  - performance
+
+owner_context: |
+  Session commit/rollback semantics must be correct. Connection strings must
+  never be logged. Tests use isolated in-memory or temp-file SQLite to avoid
+  state bleed. Lazy session creation; avoid N+1 via explicit query design.
+
+tech_stack:
+  - Python 3.12+
+  - SQLAlchemy 2.x
+  - pytest / in-memory SQLite
+
+monitoring:
+  dashboards: []
+  alerts: []
+
+deployment:
+  type: none

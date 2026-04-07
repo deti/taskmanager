@@ -1,0 +1,28 @@
+schema_version: 1
+fleet_name: "taskmanager"
+fleet_plugin_version: "0.9.4"
+auto_analyze: false
+ralph_enabled: true
+
+# How crew work is integrated:
+#   local — crews commit locally and merge into the dispatch branch (default, no PRs, no push)
+#   pr    — crews push branches, captain creates PRs to main
+merge_strategy: local
+
+# How crew branches are integrated into the target:
+#   squash — git merge --squash (one clean commit per crew, default)
+#   merge  — git merge --no-ff (preserves crew commit history)
+#   rebase — git rebase (linear history, no merge commits)
+merge_mode: squash
+
+changelog_retention_days: 30
+
+scan_paths:
+  - src/
+  - tests/
+
+ignore_paths:
+  - node_modules/
+  - dist/
+  - build/
+  - "*.generated.*"

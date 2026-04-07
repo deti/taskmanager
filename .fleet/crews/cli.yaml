@@ -1,0 +1,37 @@
+schema_version: 1
+name: cli
+domain: Typer-based command-line interface — entry points, command wiring, and user-facing output.
+description: Owns all Typer command definitions (serve, show-settings, and future commands), the unified CLI app entry point, and Rich-formatted output helpers.
+last_run_commit: ""
+
+paths:
+  - src/taskmanager/cli/**/*.py
+  - tests/cli/**/*.py
+
+partners:
+  - api
+  - config
+
+sdlc_concerns:
+  - ux
+  - testing
+  - backwards_compatibility
+  - logging
+
+owner_context: |
+  Clear help text and error messages for all commands. Both unit (mocked
+  uvicorn.run) and subprocess-level integration tests. Script entry points
+  in pyproject.toml are public API.
+
+tech_stack:
+  - Python 3.12+
+  - Typer 0.12+
+  - Rich 13+
+  - uvicorn
+
+monitoring:
+  dashboards: []
+  alerts: []
+
+deployment:
+  type: none

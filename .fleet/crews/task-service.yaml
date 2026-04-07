@@ -1,0 +1,37 @@
+schema_version: 1
+name: task-service
+domain: Business logic for task CRUD — validation, uniqueness enforcement, and orchestration of persistence operations.
+description: Owns the TaskService class and service-layer helpers. Accepts SQLAlchemy Sessions from callers; responsible for validation, duplicate detection, and all database queries for Task records. Must remain framework-agnostic.
+last_run_commit: ""
+
+paths:
+  - src/taskmanager/services/**/*.py
+  - tests/unit/test_task_service.py
+
+partners:
+  - core-domain
+  - persistence
+  - api
+
+sdlc_concerns:
+  - correctness
+  - testing
+  - type_safety
+  - security
+
+owner_context: |
+  All CRUD edge cases (duplicate name, not found, blank fields) must be
+  covered. No raw SQL — use ORM queries exclusively to prevent injection.
+  Strict mypy with sentinel pattern for optional update fields.
+
+tech_stack:
+  - Python 3.12+
+  - SQLAlchemy 2.x
+  - mypy strict
+
+monitoring:
+  dashboards: []
+  alerts: []
+
+deployment:
+  type: none

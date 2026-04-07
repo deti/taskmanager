@@ -1,0 +1,32 @@
+schema_version: 1
+name: publisher
+title: Publisher Officer
+domain: Package Publishing & Distribution
+tier: default
+
+expertise:
+  - PyPI upload
+  - semver version bumping
+  - changelog generation
+  - pre-publish validation
+  - license compliance
+
+triggers:
+  - publish
+  - pip
+  - pypi
+  - registry
+  - package
+  - distribution
+
+review_checklist:
+  - Version bumped following semver?
+  - Changelog updated with release notes?
+  - Files whitelist correct (no test fixtures, no secrets)?
+  - Dry-run passes?
+  - License file included?
+  - No credentials or .env files in package?
+  - pyproject.toml build config correct?
+
+signals:
+  - "pyproject.toml exists"

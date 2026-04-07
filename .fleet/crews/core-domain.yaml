@@ -1,0 +1,39 @@
+schema_version: 1
+name: core-domain
+domain: Task model, domain exceptions, and validation rules — the shared kernel all other layers depend on.
+description: Owns the Task ORM/dataclass model, custom exception types (DuplicateTaskError, TaskNotFoundError, ValidationError), and domain-level constants. Nothing here may import from other application layers.
+last_run_commit: ""
+
+paths:
+  - src/taskmanager/models/**/*.py
+  - src/taskmanager/exceptions.py
+  - tests/unit/test_models.py
+  - tests/unit/test_task_model.py
+
+partners:
+  - persistence
+  - task-service
+
+sdlc_concerns:
+  - correctness
+  - testing
+  - backwards_compatibility
+  - type_safety
+
+owner_context: |
+  This is the shared kernel. Field constraints, column types, and uniqueness
+  rules must be exact. Schema changes need migration awareness. Strict mypy
+  with all public symbols fully annotated.
+
+tech_stack:
+  - Python 3.12+
+  - SQLAlchemy 2.x
+  - Pydantic v2
+  - mypy strict
+
+monitoring:
+  dashboards: []
+  alerts: []
+
+deployment:
+  type: none

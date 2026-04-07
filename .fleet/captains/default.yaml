@@ -1,0 +1,31 @@
+schema_version: 2
+name: "default"
+domain: "Task management application — Python/FastAPI backend with CLI interface"
+
+# Crews this captain orchestrates (by name from .fleet/crews/)
+crews:
+  - core-domain
+  - persistence
+  - task-service
+  - api
+  - cli
+  - config
+
+# Capability routing configuration
+capabilities:
+  index: ".fleet/capabilities/index.yaml"
+  domains: []
+  auto_dispatch:
+    post_implementation: []
+    pre_implementation: []
+  max_parallel_specialists: 5
+  verify_fixes: true
+
+# Verification commands run after all crews complete
+verification:
+  build: "uv sync"
+  test: "uv run pytest tests/ -v"
+  lint: "uv run ruff check ."
+
+# Where plans are written
+plan_dir: ".fleet/plans"
