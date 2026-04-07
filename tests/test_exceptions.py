@@ -52,7 +52,7 @@ class TestDuplicateTaskError:
     def test_can_be_raised_and_caught(self) -> None:
         """Test that the exception can be raised and caught."""
         with pytest.raises(DuplicateTaskError) as exc_info:
-            raise DuplicateTaskError("Duplicate Task")
+            raise DuplicateTaskError("Duplicate Task")  # noqa: TRY003
 
         assert exc_info.value.name == "Duplicate Task"
         assert "Task with name 'Duplicate Task' already exists" in str(exc_info.value)

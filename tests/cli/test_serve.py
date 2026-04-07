@@ -99,7 +99,7 @@ def test_serve_with_debug_log_level(mock_uvicorn_run, monkeypatch):
 
 def test_serve_module_can_be_imported():
     """Test that the serve module can be imported and has the expected structure."""
-    from importlib import import_module  # noqa: PLC0415
+    from importlib import import_module
 
     serve_module = import_module("taskmanager.cli.serve")
 
