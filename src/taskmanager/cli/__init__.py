@@ -2,6 +2,7 @@
 
 import typer
 
+from taskmanager.cli.config import app as config_app
 from taskmanager.cli.run import app as run_app
 from taskmanager.cli.serve import serve
 from taskmanager.cli.show_settings import show_settings
@@ -13,6 +14,7 @@ app.command()(serve)
 app.command(name="show-settings")(show_settings)
 app.add_typer(task_app, name="task")
 app.add_typer(run_app, name="run")
+app.add_typer(config_app, name="config")
 
 
 def main() -> None:
