@@ -180,6 +180,27 @@ class Settings(BaseSettings):
         return self
 
 
+def get_version() -> str:
+    """Extract version string from pyproject.toml.
+
+    Used by the /api/info endpoint to report application version.
+    Returns "unknown" if pyproject.toml is missing or doesn't contain
+    a valid project.version field.
+
+    Returns:
+        Version string (e.g., "0.1.0") or "unknown" if unavailable.
+    """
+    pyproject_path = PROJECT_ROOT / "pyproject.toml"
+    try:
+        with pyproject_path.open("rb") as f:
+            data = tomllib.load(f)
+            project = data.get("project", {})
+            version = project.get("version", "unknown")
+            return str(version) if version is not None else "unknown"
+    except (FileNotFoundError, tomllib.TOMLDecodeError, KeyError):
+        return "unknown"
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return a cached Settings instance."""
