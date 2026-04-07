@@ -3,8 +3,9 @@
 import enum
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import Enum, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Enum, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from taskmanager.database import Base
@@ -51,6 +52,9 @@ class Task(Base):
     command: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     shell: Mapped[str] = mapped_column(String(255), nullable=False, default="/bin/sh")
+    task_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSON, nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         nullable=False,
         default=lambda: datetime.now(UTC),

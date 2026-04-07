@@ -73,7 +73,7 @@ def test_tasks_table_columns():
     Base.metadata.create_all(engine)
     inspector = inspect(engine)
     columns = {col["name"] for col in inspector.get_columns("tasks")}
-    expected = {"id", "name", "command", "description", "shell", "created_at", "updated_at"}
+    expected = {"id", "name", "command", "description", "shell", "metadata", "created_at", "updated_at"}
     assert expected == columns
     engine.dispose()
 
