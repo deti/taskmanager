@@ -1,6 +1,7 @@
 """Unit tests for task executor."""
 
 import subprocess
+from collections.abc import Generator
 from unittest.mock import patch
 
 import pytest
@@ -8,12 +9,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from taskmanager.database import Base
-from taskmanager.executor import execute_task
+from taskmanager.executor import execute_inline, execute_task
 from taskmanager.models import Run, RunStatus, Task
 
 
 @pytest.fixture
-def db_session() -> Session:
+def db_session() -> Generator[Session, None, None]:
     """Create an in-memory SQLite session for testing."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -206,3 +207,122 @@ class TestExecuteTaskEdgeCases:
         assert retrieved_run.id == run.id
         assert retrieved_run.task_id == sample_task.id
         assert retrieved_run.status == RunStatus.SUCCESS
+
+
+class TestExecuteInline:
+    """Tests for inline command execution (no task association)."""
+
+    def test_successful_inline_execution(self, db_session: Session) -> None:
+        """Test successful inline execution captures output and sets task_id to None."""
+        # Act
+        run = execute_inline("echo hello", db_session)
+
+        # Assert
+        assert run.task_id is None  # Key difference from execute_task
+        assert run.status == RunStatus.SUCCESS
+        assert run.exit_code == 0
+        assert "hello" in run.stdout
+        assert run.stderr == ""
+        assert run.command_snapshot == "echo hello"
+        assert run.duration_ms is not None
+        assert run.duration_ms > 0
+        assert run.started_at is not None
+        assert run.finished_at is not None
+        assert run.error_message is None
+
+    def test_failed_inline_execution(self, db_session: Session) -> None:
+        """Test failed inline execution sets status to FAILED with exit code."""
+        # Act
+        run = execute_inline("exit 1", db_session)
+
+        # Assert
+        assert run.task_id is None
+        assert run.status == RunStatus.FAILED
+        assert run.exit_code == 1
+        assert run.command_snapshot == "exit 1"
+        assert run.duration_ms is not None
+        assert run.started_at is not None
+        assert run.finished_at is not None
+
+    def test_inline_execution_with_custom_shell(self, db_session: Session) -> None:
+        """Test inline execution uses specified shell."""
+        # Act - use bash-specific syntax
+        run = execute_inline("echo $SHELL", db_session, shell="/bin/bash")
+
+        # Assert
+        assert run.task_id is None
+        assert run.status == RunStatus.SUCCESS
+        assert run.exit_code == 0
+        # The command will output the shell path or empty string
+        # depending on environment, but should execute without error
+        assert run.command_snapshot == "echo $SHELL"
+
+    def test_inline_execution_timeout(self, db_session: Session) -> None:
+        """Test inline execution timeout handling."""
+        # Arrange - mock subprocess.run to raise TimeoutExpired
+        def mock_subprocess_run(*args, **_kwargs):
+            # Simulate a timeout by raising TimeoutExpired
+            raise subprocess.TimeoutExpired(cmd=args[0] if args else "", timeout=1)
+
+        # Act
+        with patch("taskmanager.executor.subprocess.run", side_effect=mock_subprocess_run):
+            run = execute_inline("sleep 10", db_session)
+
+        # Assert
+        assert run.task_id is None
+        assert run.status == RunStatus.FAILED
+        assert run.error_message is not None
+        assert "timed out" in run.error_message.lower()
+        assert run.exit_code is None  # No exit code on timeout
+        assert run.duration_ms is not None
+        assert run.duration_ms >= 0
+        assert run.command_snapshot == "sleep 10"
+
+    def test_inline_run_persisted_to_database(self, db_session: Session) -> None:
+        """Test that inline run is persisted with task_id=None in database."""
+        # Act
+        run = execute_inline("echo test", db_session)
+
+        # Assert - query from a fresh session context to verify persistence
+        db_session.expire_all()
+        retrieved_run = db_session.query(Run).filter_by(id=run.id).first()
+        assert retrieved_run is not None
+        assert retrieved_run.id == run.id
+        assert retrieved_run.task_id is None  # Verify NULL in database
+        assert retrieved_run.status == RunStatus.SUCCESS
+        assert retrieved_run.command_snapshot == "echo test"
+
+    def test_inline_execution_with_stderr(self, db_session: Session) -> None:
+        """Test that inline execution captures stderr correctly."""
+        # Act
+        run = execute_inline("echo error >&2 && exit 1", db_session)
+
+        # Assert
+        assert run.task_id is None
+        assert run.status == RunStatus.FAILED
+        assert run.exit_code == 1
+        assert "error" in run.stderr
+        assert run.command_snapshot == "echo error >&2 && exit 1"
+
+    def test_inline_command_snapshot_immutable(self, db_session: Session) -> None:
+        """Test that command_snapshot captures the exact command string."""
+        # Act
+        original_command = "echo snapshot test"
+        run = execute_inline(original_command, db_session)
+
+        # Assert - command_snapshot should match input exactly
+        assert run.command_snapshot == original_command
+        assert "snapshot test" in run.stdout
+
+    def test_inline_execution_with_empty_output(self, db_session: Session) -> None:
+        """Test inline execution with no stdout or stderr."""
+        # Act
+        run = execute_inline("true", db_session)
+
+        # Assert
+        assert run.task_id is None
+        assert run.status == RunStatus.SUCCESS
+        assert run.exit_code == 0
+        assert run.stdout == ""
+        assert run.stderr == ""
+        assert run.command_snapshot == "true"
