@@ -16,11 +16,11 @@ class TaskNotFoundError(Exception):
         message: Formatted error message.
     """
 
-    def __init__(self, task_id: int) -> None:
+    def __init__(self, task_id: int | str) -> None:
         """Initialize the exception.
 
         Args:
-            task_id: The ID of the task that was not found.
+            task_id: The ID of the task that was not found (int or UUID string).
         """
         self.task_id = task_id
         self.message = f"Task with ID {task_id} not found"

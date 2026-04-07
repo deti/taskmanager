@@ -3,7 +3,7 @@ crew: task-service
 at_commit: 912e616
 affected_partners: [core-domain]
 severity: minor
-acknowledged_by: [cli]
+acknowledged_by: [cli, core-domain]
 ---
 
 # TaskNotFoundError Type Signature Issue
