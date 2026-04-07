@@ -14,8 +14,12 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from taskmanager.logging import get_logger
 from taskmanager.models import Run, RunStatus, Task
 from taskmanager.settings import get_settings
+
+
+logger = get_logger(__name__)
 
 
 def _execute_subprocess(
@@ -104,6 +108,13 @@ def execute_task(task: Task, db: Session) -> Run:
     db.add(run)
     db.flush()  # Persist to get the ID
 
+    logger.info(
+        "task.executing",
+        task_name=task.name,
+        task_id=task.id,
+        run_id=run.id,
+    )
+
     # Execute the command
     start_time = time.perf_counter()
 
@@ -121,8 +132,26 @@ def execute_task(task: Task, db: Session) -> Run:
 
         if exit_code == 0:
             run.status = RunStatus.SUCCESS
+            logger.info(
+                "task.completed",
+                task_name=task.name,
+                task_id=task.id,
+                run_id=run.id,
+                exit_code=exit_code,
+                duration_ms=duration_ms,
+                status="success",
+            )
         else:
             run.status = RunStatus.FAILED
+            logger.warning(
+                "task.failed",
+                task_name=task.name,
+                task_id=task.id,
+                run_id=run.id,
+                exit_code=exit_code,
+                duration_ms=duration_ms,
+                status="failed",
+            )
 
     except subprocess.TimeoutExpired:
         end_time = time.perf_counter()
@@ -135,6 +164,16 @@ def execute_task(task: Task, db: Session) -> Run:
             f"Command timed out after {settings.subprocess_timeout} seconds"
         )
 
+        logger.exception(
+            "task.timeout",
+            task_name=task.name,
+            task_id=task.id,
+            run_id=run.id,
+            duration_ms=duration_ms,
+            timeout=settings.subprocess_timeout,
+            status="timeout",
+        )
+
     except Exception as e:
         end_time = time.perf_counter()
         duration_ms = int((end_time - start_time) * 1000)
@@ -143,6 +182,16 @@ def execute_task(task: Task, db: Session) -> Run:
         run.duration_ms = duration_ms
         run.finished_at = datetime.now(UTC)
         run.error_message = f"Execution error: {type(e).__name__}: {e}"
+
+        logger.exception(
+            "task.failed",
+            task_name=task.name,
+            task_id=task.id,
+            run_id=run.id,
+            error=str(e),
+            error_type=type(e).__name__,
+            status="failed",
+        )
 
     # Commit to database
     db.commit()
@@ -195,6 +244,13 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
     db.add(run)
     db.flush()  # Persist to get the ID
 
+    logger.info(
+        "task.executing",
+        task_name="<inline>",
+        task_id=None,
+        run_id=run.id,
+    )
+
     # Execute the command
     start_time = time.perf_counter()
 
@@ -212,8 +268,26 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
 
         if exit_code == 0:
             run.status = RunStatus.SUCCESS
+            logger.info(
+                "task.completed",
+                task_name="<inline>",
+                task_id=None,
+                run_id=run.id,
+                exit_code=exit_code,
+                duration_ms=duration_ms,
+                status="success",
+            )
         else:
             run.status = RunStatus.FAILED
+            logger.warning(
+                "task.failed",
+                task_name="<inline>",
+                task_id=None,
+                run_id=run.id,
+                exit_code=exit_code,
+                duration_ms=duration_ms,
+                status="failed",
+            )
 
     except subprocess.TimeoutExpired:
         end_time = time.perf_counter()
@@ -226,6 +300,16 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
             f"Command timed out after {settings.subprocess_timeout} seconds"
         )
 
+        logger.exception(
+            "task.timeout",
+            task_name="<inline>",
+            task_id=None,
+            run_id=run.id,
+            duration_ms=duration_ms,
+            timeout=settings.subprocess_timeout,
+            status="timeout",
+        )
+
     except Exception as e:
         end_time = time.perf_counter()
         duration_ms = int((end_time - start_time) * 1000)
@@ -234,6 +318,16 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
         run.duration_ms = duration_ms
         run.finished_at = datetime.now(UTC)
         run.error_message = f"Execution error: {type(e).__name__}: {e}"
+
+        logger.exception(
+            "task.failed",
+            task_name="<inline>",
+            task_id=None,
+            run_id=run.id,
+            error=str(e),
+            error_type=type(e).__name__,
+            status="failed",
+        )
 
     # Commit to database
     db.commit()
