@@ -476,3 +476,213 @@ class TestEventEmissions:
         assert completed_payload["task_name"] == "<inline>"
         assert completed_payload["run_id"] == run.id
         assert completed_payload["exit_code"] == 0
+
+
+class TestPluginIntegration:
+    """Tests for plugin hook integration in executor."""
+
+    def test_plugin_veto_cancels_execution(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that plugin returning False vetoes execution and sets status to CANCELLED."""
+        # Arrange
+        sample_task.command = "echo should not run"
+
+        # Create a mock plugin that vetoes execution
+        class VetoPlugin:
+            def on_before_execute(self, task: Task, run: Run) -> bool:
+                return False  # Veto execution
+
+        # Act
+        with patch("taskmanager.executor.PluginManager") as mock_pm_class:
+            mock_pm = MagicMock()
+            mock_pm.call_on_before_execute.return_value = False
+            mock_pm_class.return_value = mock_pm
+
+            run = execute_task(sample_task, db_session)
+
+        # Assert
+        assert run.status == RunStatus.CANCELLED
+        assert run.started_at is not None
+        assert run.finished_at is not None
+        assert run.exit_code is None  # Never executed
+        assert run.stdout == ""  # Never executed (default value)
+        assert run.stderr == ""  # Never executed (default value)
+        assert run.duration_ms is None  # Never executed
+        assert mock_pm.call_on_before_execute.call_count == 1
+
+    def test_plugin_allows_execution(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that plugin returning True allows execution."""
+        # Arrange
+        sample_task.command = "echo allowed"
+
+        # Act
+        with patch("taskmanager.executor.PluginManager") as mock_pm_class:
+            mock_pm = MagicMock()
+            mock_pm.call_on_before_execute.return_value = True
+            mock_pm_class.return_value = mock_pm
+
+            run = execute_task(sample_task, db_session)
+
+        # Assert
+        assert run.status == RunStatus.SUCCESS
+        assert run.exit_code == 0
+        assert "allowed" in run.stdout
+        assert mock_pm.call_on_before_execute.call_count == 1
+        assert mock_pm.call_on_after_execute.call_count == 1
+
+    def test_after_execute_hook_receives_completed_run(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that on_after_execute receives completed Run with all fields."""
+        # Arrange
+        sample_task.command = "echo test"
+
+        # Act
+        with patch("taskmanager.executor.PluginManager") as mock_pm_class:
+            mock_pm = MagicMock()
+            mock_pm.call_on_before_execute.return_value = True
+            mock_pm_class.return_value = mock_pm
+
+            execute_task(sample_task, db_session)
+
+        # Assert - verify the hook was called
+        assert mock_pm.call_on_after_execute.call_count == 1
+
+        # Extract the actual arguments passed to the hook
+        call_args = mock_pm.call_on_after_execute.call_args
+        # call_args is a tuple: (args, kwargs) or use args[0] and args[1]
+        passed_task = call_args[0][0]  # First positional argument
+        passed_run = call_args[0][1]   # Second positional argument
+
+        # Verify the task and run were passed correctly
+        assert passed_task == sample_task
+
+        # Verify the Run has all completion fields
+        assert passed_run.status == RunStatus.SUCCESS
+        assert passed_run.exit_code == 0
+        assert passed_run.stdout is not None
+        assert passed_run.stderr is not None
+        assert passed_run.duration_ms is not None
+        assert passed_run.started_at is not None
+        assert passed_run.finished_at is not None
+
+    def test_after_execute_called_on_failure(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that on_after_execute is called even when task fails."""
+        # Arrange
+        sample_task.command = "exit 1"
+
+        # Act
+        with patch("taskmanager.executor.PluginManager") as mock_pm_class:
+            mock_pm = MagicMock()
+            mock_pm.call_on_before_execute.return_value = True
+            mock_pm_class.return_value = mock_pm
+
+            run = execute_task(sample_task, db_session)
+
+        # Assert
+        assert run.status == RunStatus.FAILED
+        assert run.exit_code == 1
+        assert mock_pm.call_on_after_execute.call_count == 1
+
+    def test_after_execute_called_on_timeout(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that on_after_execute is called even on timeout."""
+        # Arrange
+        sample_task.command = "sleep 10"
+
+        def mock_subprocess_run(*args, **_kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0] if args else "", timeout=1)
+
+        # Act
+        with (
+            patch("taskmanager.executor.PluginManager") as mock_pm_class,
+            patch("taskmanager.executor.subprocess.run", side_effect=mock_subprocess_run),
+        ):
+            mock_pm = MagicMock()
+            mock_pm.call_on_before_execute.return_value = True
+            mock_pm_class.return_value = mock_pm
+
+            run = execute_task(sample_task, db_session)
+
+        # Assert
+        assert run.status == RunStatus.FAILED
+        assert "timed out" in run.error_message.lower()
+        assert mock_pm.call_on_after_execute.call_count == 1
+
+    def test_plugin_exception_in_before_execute_allows_execution(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that exceptions in PluginManager.call_on_before_execute allow execution.
+
+        When PluginManager encounters an exception, it logs the error and returns True
+        to allow execution to proceed safely.
+        """
+        # Arrange
+        sample_task.command = "echo test"
+
+        # Create a real PluginManager with a failing plugin
+        from taskmanager.plugins import PluginManager
+
+        class PluginCrashError(Exception):
+            """Custom exception for testing plugin failures."""
+
+            def __init__(self) -> None:
+                super().__init__("Plugin crashed")
+
+        class FailingPlugin:
+            def on_before_execute(self, task: Task, run: Run) -> bool:
+                raise PluginCrashError
+
+        # Act - register a plugin that will crash, then execute task
+        # Patch PluginManager's initialization to avoid loading real plugins
+        with patch.object(PluginManager, "_discover_and_load_plugins"):
+            pm = PluginManager()
+            pm.register_plugin(FailingPlugin(), "test-plugin")
+
+            # Now patch the executor to use our configured PluginManager
+            with patch("taskmanager.executor.PluginManager", return_value=pm):
+                run = execute_task(sample_task, db_session)
+
+        # Assert - execution should proceed despite plugin exception
+        assert run.status == RunStatus.SUCCESS
+        assert run.exit_code == 0
+        assert "test" in run.stdout
+
+    def test_plugin_exception_in_after_execute_does_not_crash(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that exceptions in on_after_execute don't crash the executor."""
+        # Arrange
+        sample_task.command = "echo test"
+
+        # Create a real PluginManager with a failing after_execute plugin
+        from taskmanager.plugins import PluginManager
+
+        class AfterExecuteCrashError(Exception):
+            """Custom exception for testing after_execute failures."""
+
+            def __init__(self) -> None:
+                super().__init__("After execute crashed")
+
+        class FailingAfterPlugin:
+            def on_after_execute(self, task: Task, run: Run) -> None:
+                raise AfterExecuteCrashError
+
+        # Act
+        with patch.object(PluginManager, "_discover_and_load_plugins"):
+            pm = PluginManager()
+            pm.register_plugin(FailingAfterPlugin(), "test-plugin")
+
+            with patch("taskmanager.executor.PluginManager", return_value=pm):
+                run = execute_task(sample_task, db_session)
+
+        # Assert - execution should complete successfully
+        assert run.status == RunStatus.SUCCESS
+        assert run.exit_code == 0
+        assert "test" in run.stdout

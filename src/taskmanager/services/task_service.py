@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from taskmanager.exceptions import DuplicateTaskError, TaskNotFoundError
 from taskmanager.models import Task
+from taskmanager.plugins import PluginManager
 
 
 def create_task(
@@ -56,6 +57,11 @@ def create_task(
     )
     session.add(task)
     session.flush()  # Flush to get the generated ID
+
+    # Call plugin hook for task registration
+    pm = PluginManager()
+    pm.call_on_task_registered(task)
+
     return task
 
 

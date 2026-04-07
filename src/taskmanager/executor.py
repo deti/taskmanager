@@ -23,6 +23,7 @@ from taskmanager.events import (
 )
 from taskmanager.logging import get_logger
 from taskmanager.models import Run, RunStatus, Task
+from taskmanager.plugins import PluginManager
 from taskmanager.settings import get_settings
 
 
@@ -76,7 +77,7 @@ def _execute_subprocess(
     return result.returncode, result.stdout, result.stderr, duration_ms
 
 
-def execute_task(task: Task, db: Session) -> Run:
+def execute_task(task: Task, db: Session) -> Run:  # noqa: PLR0915
     """Execute a task's command and record the run in the database.
 
     Creates a Run record with RUNNING status, executes the command via subprocess,
@@ -121,6 +122,23 @@ def execute_task(task: Task, db: Session) -> Run:
         task_id=task.id,
         run_id=run.id,
     )
+
+    # Call plugin hook before execution - plugins can veto execution
+    pm = PluginManager()
+    should_execute = pm.call_on_before_execute(task, run)
+    if not should_execute:
+        # Plugin vetoed execution - mark run as CANCELLED
+        run.status = RunStatus.CANCELLED
+        run.finished_at = datetime.now(UTC)
+        db.commit()
+        logger.info(
+            "task.cancelled",
+            task_name=task.name,
+            task_id=task.id,
+            run_id=run.id,
+            reason="plugin_veto",
+        )
+        return run
 
     # Emit TASK_STARTED event
     event_bus = get_event_bus()
@@ -250,6 +268,9 @@ def execute_task(task: Task, db: Session) -> Run:
             error_type=type(e).__name__,
             status="failed",
         )
+
+    # Call plugin hook after execution
+    pm.call_on_after_execute(task, run)
 
     # Commit to database
     db.commit()
