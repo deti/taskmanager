@@ -14,6 +14,13 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from taskmanager.events import (
+    TASK_COMPLETED,
+    TASK_FAILED,
+    TASK_STARTED,
+    TASK_TIMEOUT,
+    get_event_bus,
+)
 from taskmanager.logging import get_logger
 from taskmanager.models import Run, RunStatus, Task
 from taskmanager.settings import get_settings
@@ -115,6 +122,18 @@ def execute_task(task: Task, db: Session) -> Run:
         run_id=run.id,
     )
 
+    # Emit TASK_STARTED event
+    event_bus = get_event_bus()
+    event_bus.emit(
+        TASK_STARTED,
+        {
+            "task_id": task.id,
+            "run_id": run.id,
+            "task_name": task.name,
+            "timestamp": datetime.now(UTC),
+        },
+    )
+
     # Execute the command
     start_time = time.perf_counter()
 
@@ -141,6 +160,19 @@ def execute_task(task: Task, db: Session) -> Run:
                 duration_ms=duration_ms,
                 status="success",
             )
+
+            # Emit TASK_COMPLETED event
+            event_bus.emit(
+                TASK_COMPLETED,
+                {
+                    "task_id": task.id,
+                    "run_id": run.id,
+                    "task_name": task.name,
+                    "exit_code": 0,
+                    "duration_ms": duration_ms,
+                    "timestamp": datetime.now(UTC),
+                },
+            )
         else:
             run.status = RunStatus.FAILED
             logger.warning(
@@ -151,6 +183,19 @@ def execute_task(task: Task, db: Session) -> Run:
                 exit_code=exit_code,
                 duration_ms=duration_ms,
                 status="failed",
+            )
+
+            # Emit TASK_FAILED event
+            event_bus.emit(
+                TASK_FAILED,
+                {
+                    "task_id": task.id,
+                    "run_id": run.id,
+                    "task_name": task.name,
+                    "exit_code": exit_code,
+                    "duration_ms": duration_ms,
+                    "timestamp": datetime.now(UTC),
+                },
             )
 
     except subprocess.TimeoutExpired:
@@ -172,6 +217,19 @@ def execute_task(task: Task, db: Session) -> Run:
             duration_ms=duration_ms,
             timeout=settings.subprocess_timeout,
             status="timeout",
+        )
+
+        # Emit TASK_TIMEOUT event
+        event_bus.emit(
+            TASK_TIMEOUT,
+            {
+                "task_id": task.id,
+                "run_id": run.id,
+                "task_name": task.name,
+                "duration_ms": duration_ms,
+                "timeout_seconds": settings.subprocess_timeout,
+                "timestamp": datetime.now(UTC),
+            },
         )
 
     except Exception as e:
@@ -251,6 +309,18 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
         run_id=run.id,
     )
 
+    # Emit TASK_STARTED event
+    event_bus = get_event_bus()
+    event_bus.emit(
+        TASK_STARTED,
+        {
+            "task_id": None,
+            "run_id": run.id,
+            "task_name": "<inline>",
+            "timestamp": datetime.now(UTC),
+        },
+    )
+
     # Execute the command
     start_time = time.perf_counter()
 
@@ -277,6 +347,19 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
                 duration_ms=duration_ms,
                 status="success",
             )
+
+            # Emit TASK_COMPLETED event
+            event_bus.emit(
+                TASK_COMPLETED,
+                {
+                    "task_id": None,
+                    "run_id": run.id,
+                    "task_name": "<inline>",
+                    "exit_code": 0,
+                    "duration_ms": duration_ms,
+                    "timestamp": datetime.now(UTC),
+                },
+            )
         else:
             run.status = RunStatus.FAILED
             logger.warning(
@@ -287,6 +370,19 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
                 exit_code=exit_code,
                 duration_ms=duration_ms,
                 status="failed",
+            )
+
+            # Emit TASK_FAILED event
+            event_bus.emit(
+                TASK_FAILED,
+                {
+                    "task_id": None,
+                    "run_id": run.id,
+                    "task_name": "<inline>",
+                    "exit_code": exit_code,
+                    "duration_ms": duration_ms,
+                    "timestamp": datetime.now(UTC),
+                },
             )
 
     except subprocess.TimeoutExpired:
@@ -308,6 +404,19 @@ def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
             duration_ms=duration_ms,
             timeout=settings.subprocess_timeout,
             status="timeout",
+        )
+
+        # Emit TASK_TIMEOUT event
+        event_bus.emit(
+            TASK_TIMEOUT,
+            {
+                "task_id": None,
+                "run_id": run.id,
+                "task_name": "<inline>",
+                "duration_ms": duration_ms,
+                "timeout_seconds": settings.subprocess_timeout,
+                "timestamp": datetime.now(UTC),
+            },
         )
 
     except Exception as e:

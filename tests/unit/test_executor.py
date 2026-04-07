@@ -2,13 +2,19 @@
 
 import subprocess
 from collections.abc import Generator
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from taskmanager.database import Base
+from taskmanager.events import (
+    TASK_COMPLETED,
+    TASK_FAILED,
+    TASK_STARTED,
+    TASK_TIMEOUT,
+)
 from taskmanager.executor import execute_inline, execute_task
 from taskmanager.models import Run, RunStatus, Task
 
@@ -326,3 +332,147 @@ class TestExecuteInline:
         assert run.stdout == ""
         assert run.stderr == ""
         assert run.command_snapshot == "true"
+
+
+class TestEventEmissions:
+    """Tests for event bus emissions during task execution."""
+
+    def test_execute_task_emits_started_and_completed_events(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that successful task execution emits TASK_STARTED and TASK_COMPLETED events."""
+        # Arrange
+        sample_task.command = "echo test"
+        mock_event_bus = MagicMock()
+
+        # Act
+        with patch("taskmanager.executor.get_event_bus", return_value=mock_event_bus):
+            run = execute_task(sample_task, db_session)
+
+        # Assert
+        assert run.status == RunStatus.SUCCESS
+        assert mock_event_bus.emit.call_count == 2
+
+        # Verify TASK_STARTED event
+        started_call = mock_event_bus.emit.call_args_list[0]
+        assert started_call[0][0] == TASK_STARTED
+        started_payload = started_call[0][1]
+        assert started_payload["task_id"] == sample_task.id
+        assert started_payload["run_id"] == run.id
+        assert started_payload["task_name"] == sample_task.name
+        assert "timestamp" in started_payload
+
+        # Verify TASK_COMPLETED event
+        completed_call = mock_event_bus.emit.call_args_list[1]
+        assert completed_call[0][0] == TASK_COMPLETED
+        completed_payload = completed_call[0][1]
+        assert completed_payload["task_id"] == sample_task.id
+        assert completed_payload["run_id"] == run.id
+        assert completed_payload["task_name"] == sample_task.name
+        assert completed_payload["exit_code"] == 0
+        assert completed_payload["duration_ms"] == run.duration_ms
+        assert "timestamp" in completed_payload
+
+    def test_execute_task_emits_failed_event(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that failed task execution emits TASK_STARTED and TASK_FAILED events."""
+        # Arrange
+        sample_task.command = "exit 42"
+        mock_event_bus = MagicMock()
+
+        # Act
+        with patch("taskmanager.executor.get_event_bus", return_value=mock_event_bus):
+            run = execute_task(sample_task, db_session)
+
+        # Assert
+        assert run.status == RunStatus.FAILED
+        assert run.exit_code == 42
+        assert mock_event_bus.emit.call_count == 2
+
+        # Verify TASK_STARTED event
+        started_call = mock_event_bus.emit.call_args_list[0]
+        assert started_call[0][0] == TASK_STARTED
+
+        # Verify TASK_FAILED event
+        failed_call = mock_event_bus.emit.call_args_list[1]
+        assert failed_call[0][0] == TASK_FAILED
+        failed_payload = failed_call[0][1]
+        assert failed_payload["task_id"] == sample_task.id
+        assert failed_payload["run_id"] == run.id
+        assert failed_payload["task_name"] == sample_task.name
+        assert failed_payload["exit_code"] == 42
+        assert failed_payload["duration_ms"] == run.duration_ms
+        assert "timestamp" in failed_payload
+
+    def test_execute_task_emits_timeout_event(
+        self, db_session: Session, sample_task: Task
+    ) -> None:
+        """Test that timeout execution emits TASK_STARTED and TASK_TIMEOUT events."""
+        # Arrange
+        sample_task.command = "sleep 10"
+        mock_event_bus = MagicMock()
+
+        def mock_subprocess_run(*args, **_kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0] if args else "", timeout=1)
+
+        # Act
+        with (
+            patch("taskmanager.executor.get_event_bus", return_value=mock_event_bus),
+            patch("taskmanager.executor.subprocess.run", side_effect=mock_subprocess_run),
+        ):
+            run = execute_task(sample_task, db_session)
+
+        # Assert
+        assert run.status == RunStatus.FAILED
+        assert run.error_message is not None
+        assert "timed out" in run.error_message.lower()
+        assert mock_event_bus.emit.call_count == 2
+
+        # Verify TASK_STARTED event
+        started_call = mock_event_bus.emit.call_args_list[0]
+        assert started_call[0][0] == TASK_STARTED
+
+        # Verify TASK_TIMEOUT event
+        timeout_call = mock_event_bus.emit.call_args_list[1]
+        assert timeout_call[0][0] == TASK_TIMEOUT
+        timeout_payload = timeout_call[0][1]
+        assert timeout_payload["task_id"] == sample_task.id
+        assert timeout_payload["run_id"] == run.id
+        assert timeout_payload["task_name"] == sample_task.name
+        assert timeout_payload["duration_ms"] == run.duration_ms
+        assert "timeout_seconds" in timeout_payload
+        assert "timestamp" in timeout_payload
+
+    def test_execute_inline_emits_events_with_none_task_id(
+        self, db_session: Session
+    ) -> None:
+        """Test that inline execution emits events with task_id=None and task_name='<inline>'."""
+        # Arrange
+        mock_event_bus = MagicMock()
+
+        # Act
+        with patch("taskmanager.executor.get_event_bus", return_value=mock_event_bus):
+            run = execute_inline("echo test", db_session)
+
+        # Assert
+        assert run.status == RunStatus.SUCCESS
+        assert run.task_id is None
+        assert mock_event_bus.emit.call_count == 2
+
+        # Verify TASK_STARTED event
+        started_call = mock_event_bus.emit.call_args_list[0]
+        assert started_call[0][0] == TASK_STARTED
+        started_payload = started_call[0][1]
+        assert started_payload["task_id"] is None
+        assert started_payload["task_name"] == "<inline>"
+        assert started_payload["run_id"] == run.id
+
+        # Verify TASK_COMPLETED event
+        completed_call = mock_event_bus.emit.call_args_list[1]
+        assert completed_call[0][0] == TASK_COMPLETED
+        completed_payload = completed_call[0][1]
+        assert completed_payload["task_id"] is None
+        assert completed_payload["task_name"] == "<inline>"
+        assert completed_payload["run_id"] == run.id
+        assert completed_payload["exit_code"] == 0
