@@ -2,6 +2,10 @@
 
 This module provides the core execution logic for running task commands
 in subprocesses and capturing their output, exit codes, and execution metadata.
+
+This module provides two execution modes:
+- execute_task: Executes a registered Task object (Run.task_id is set)
+- execute_inline: Executes an ad-hoc command string (Run.task_id is None)
 """
 
 import subprocess
@@ -12,6 +16,53 @@ from sqlalchemy.orm import Session
 
 from taskmanager.models import Run, RunStatus, Task
 from taskmanager.settings import get_settings
+
+
+def _execute_subprocess(
+    command: str, shell: str, timeout: int
+) -> tuple[int, str, str, int]:
+    """Execute a shell command via subprocess and capture results.
+
+    This is a private helper function that contains the common subprocess
+    execution logic used by both execute_task and execute_inline.
+
+    Parameters
+    ----------
+    command:
+        The shell command to execute.
+    shell:
+        The shell executable to use (e.g., /bin/sh, /bin/bash).
+    timeout:
+        Maximum execution time in seconds.
+
+    Returns
+    -------
+    tuple[int, str, str, int]
+        A tuple containing (exit_code, stdout, stderr, duration_ms).
+
+    Raises
+    ------
+    subprocess.TimeoutExpired
+        If the command exceeds the timeout.
+    Exception
+        For any other execution errors.
+    """
+    start_time = time.perf_counter()
+
+    result = subprocess.run(
+        command,
+        shell=True,
+        executable=shell,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,  # Don't raise on non-zero exit codes
+    )
+
+    end_time = time.perf_counter()
+    duration_ms = int((end_time - start_time) * 1000)
+
+    return result.returncode, result.stdout, result.stderr, duration_ms
 
 
 def execute_task(task: Task, db: Session) -> Run:
@@ -57,27 +108,109 @@ def execute_task(task: Task, db: Session) -> Run:
     start_time = time.perf_counter()
 
     try:
-        result = subprocess.run(
-            task.command,
-            shell=True,
-            executable=task.shell,
-            capture_output=True,
-            text=True,
-            timeout=settings.subprocess_timeout,
-            check=False,  # Don't raise on non-zero exit codes
+        exit_code, stdout, stderr, duration_ms = _execute_subprocess(
+            task.command, task.shell, settings.subprocess_timeout
         )
 
-        end_time = time.perf_counter()
-        duration_ms = int((end_time - start_time) * 1000)
-
         # Update Run with results
-        run.exit_code = result.returncode
-        run.stdout = result.stdout
-        run.stderr = result.stderr
+        run.exit_code = exit_code
+        run.stdout = stdout
+        run.stderr = stderr
         run.duration_ms = duration_ms
         run.finished_at = datetime.now(UTC)
 
-        if result.returncode == 0:
+        if exit_code == 0:
+            run.status = RunStatus.SUCCESS
+        else:
+            run.status = RunStatus.FAILED
+
+    except subprocess.TimeoutExpired:
+        end_time = time.perf_counter()
+        duration_ms = int((end_time - start_time) * 1000)
+
+        run.status = RunStatus.FAILED
+        run.duration_ms = duration_ms
+        run.finished_at = datetime.now(UTC)
+        run.error_message = (
+            f"Command timed out after {settings.subprocess_timeout} seconds"
+        )
+
+    except Exception as e:
+        end_time = time.perf_counter()
+        duration_ms = int((end_time - start_time) * 1000)
+
+        run.status = RunStatus.FAILED
+        run.duration_ms = duration_ms
+        run.finished_at = datetime.now(UTC)
+        run.error_message = f"Execution error: {type(e).__name__}: {e}"
+
+    # Commit to database
+    db.commit()
+
+    return run
+
+
+def execute_inline(command: str, db: Session, shell: str = "/bin/sh") -> Run:
+    """Execute an ad-hoc command and record the run in the database.
+
+    This function executes a one-off command without requiring a registered Task.
+    The Run record is created with task_id=None to distinguish it from task-based
+    executions.
+
+    Parameters
+    ----------
+    command:
+        The shell command to execute. This is captured as a snapshot in the Run.
+    db:
+        SQLAlchemy session for database operations. Used to persist the Run record.
+    shell:
+        The shell executable to use. Defaults to /bin/sh (same as Task.shell default).
+
+    Returns
+    -------
+    Run
+        The completed Run object with execution results (status, exit_code,
+        stdout, stderr, duration_ms). Run.task_id will be None.
+
+    Notes
+    -----
+    - Timeout is configured via settings.subprocess_timeout (default: 300s)
+    - On timeout, status is set to FAILED with an error_message
+    - Duration is measured in milliseconds with high precision
+    - This function shares the same subprocess execution logic as execute_task
+
+    Differences from execute_task:
+    - execute_task: executes a registered Task object (Run.task_id is set)
+    - execute_inline: executes an ad-hoc command string (Run.task_id is None)
+    """
+    settings = get_settings()
+
+    # Create Run record with RUNNING status and task_id=None
+    run = Run(
+        task_id=None,  # Nullable FK for inline runs
+        status=RunStatus.RUNNING,
+        command_snapshot=command,
+        started_at=datetime.now(UTC),
+    )
+    db.add(run)
+    db.flush()  # Persist to get the ID
+
+    # Execute the command
+    start_time = time.perf_counter()
+
+    try:
+        exit_code, stdout, stderr, duration_ms = _execute_subprocess(
+            command, shell, settings.subprocess_timeout
+        )
+
+        # Update Run with results
+        run.exit_code = exit_code
+        run.stdout = stdout
+        run.stderr = stderr
+        run.duration_ms = duration_ms
+        run.finished_at = datetime.now(UTC)
+
+        if exit_code == 0:
             run.status = RunStatus.SUCCESS
         else:
             run.status = RunStatus.FAILED
