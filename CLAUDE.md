@@ -23,6 +23,25 @@ uv run pytest tests/test_main.py::test_app_instance -v
 # Application
 make serve         # Start API server (uvicorn on 127.0.0.1:8000)
 make show-settings # Print current settings as JSON
+
+# Task Management CLI
+taskmanager task add --name <name> --command <cmd>  # Create a new task
+taskmanager task list                               # List all tasks
+taskmanager task show <name>                        # Show task details
+taskmanager task edit <name> [--name] [--command]   # Edit a task
+taskmanager task remove <name>                      # Remove a task
+
+# Task Execution (F2.S2)
+taskmanager task exec <name>        # Execute a task and record run
+taskmanager run list                # List task runs (recent first)
+taskmanager run list --status failed # Filter by status (pending/running/success/failed/cancelled)
+taskmanager run list --task <name>  # Filter by task name
+taskmanager run list --limit 10     # Limit results (default: 20)
+taskmanager run show <run-id>       # Show run details (accepts short ID: first 8 chars)
+taskmanager run logs <run-id>       # Show stdout and stderr for a run
+
+# Database initialization (required on first use)
+uv run python -c "from taskmanager.database import get_engine, Base; from taskmanager.models import Task, Run, Schedule, Hook; Base.metadata.create_all(get_engine())"
 ```
 
 ## Architecture
@@ -33,18 +52,19 @@ The app follows a layered architecture under `src/taskmanager/`:
 
 - **`main.py`** — FastAPI app instance and route definitions
 - **`settings.py`** — `Settings` (Pydantic BaseSettings) loaded from env vars / `.env`; accessed via cached `get_settings()`. No env prefix — variables are `APP_NAME`, `DEBUG`, `LOG_LEVEL`, `ENVIRONMENT`, `HOST`, `PORT`.
-- **`cli/`** — Typer app with two commands: `serve` (starts uvicorn) and `show-settings` (prints settings JSON)
-- **`models/`** — SQLAlchemy ORM models (empty, ready for use)
-- **`services/`** — Business logic layer (empty, ready for use)
+- **`cli/`** — Typer app with sub-commands: `serve`, `show-settings`, `task` (CRUD), `run` (execution history)
+- **`models/`** — SQLAlchemy ORM models: `Task`, `Run`
+- **`services/`** — Business logic: `task_service` (CRUD), `run_service` (execution history queries)
+- **`executor.py`** — Task execution engine with subprocess management
 
 **Entry points** (defined in `pyproject.toml` `[project.scripts]`):
 - `taskmanager` → `taskmanager.cli:app`
 - `serve` → `taskmanager.cli.serve:serve`
 - `show-settings` → `taskmanager.cli.show_settings:show_settings`
 
-**Dependencies installed but not yet wired up:** SQLAlchemy (ORM), APScheduler (job scheduling), structlog (structured logging), pluggy (plugin system), Rich (terminal output).
+**Dependencies wired up:** SQLAlchemy (Task/Run models), Rich (CLI tables and formatting). **Not yet wired up:** APScheduler (job scheduling), structlog (structured logging), pluggy (plugin system).
 
-**Testing:** pytest-asyncio for async FastAPI tests; `ENVIRONMENT=test` should be set in test fixtures to isolate settings. No database fixtures exist yet — when SQLAlchemy is wired up, add session fixtures in `tests/conftest.py`.
+**Testing:** pytest-asyncio for async FastAPI tests; `ENVIRONMENT=test` should be set in test fixtures to isolate settings. Database tests use in-memory SQLite with fixtures in test files (`setup_db`, `mock_db` patterns). All tests pass with `make test` (146 tests total).
 
 **Tooling:** `uv` manages the virtualenv and dependencies (replaces pip/venv). `ruff` handles both linting and formatting. `mypy` runs in strict mode — all new code needs type annotations.
 

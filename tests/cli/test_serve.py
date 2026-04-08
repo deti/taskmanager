@@ -99,14 +99,14 @@ def test_serve_with_debug_log_level(mock_uvicorn_run, monkeypatch):
 
 def test_serve_module_can_be_imported():
     """Test that the serve module can be imported and has the expected structure."""
-    from importlib import import_module  # noqa: PLC0415
+    from importlib import import_module
 
     serve_module = import_module("taskmanager.cli.serve")
 
     # Verify the module has the expected attributes
     assert hasattr(serve_module, "serve")
     assert callable(serve_module.serve)
-    assert hasattr(serve_module, "app")
+    assert hasattr(serve_module, "create_app")
 
 
 def test_serve_settings_defaults():
@@ -233,3 +233,31 @@ def test_serve_with_cli_no_parameters_uses_settings(mock_uvicorn_run):
     # Check that settings values were used
     assert call_args.kwargs["host"] == "192.168.0.1"
     assert call_args.kwargs["port"] == 3000
+
+
+@patch("taskmanager.cli.serve.uvicorn.run")
+@patch("taskmanager.cli.serve.create_app")
+def test_serve_calls_create_app(mock_create_app, mock_uvicorn_run):
+    """Test that serve function calls create_app to instantiate the FastAPI app."""
+    # Mock the app instance returned by create_app
+    mock_app = MagicMock()
+    mock_create_app.return_value = mock_app
+
+    with patch("taskmanager.cli.serve.get_settings") as mock_get_settings:
+        mock_settings = MagicMock()
+        mock_settings.host = "127.0.0.1"
+        mock_settings.port = 8000
+        mock_settings.log_level = "INFO"
+        mock_get_settings.return_value = mock_settings
+
+        # Call the serve function
+        serve(host=None, port=None)
+
+    # Verify create_app was called
+    assert mock_create_app.called
+    mock_create_app.assert_called_once()
+
+    # Verify uvicorn.run was called with the app returned by create_app
+    assert mock_uvicorn_run.called
+    call_args = mock_uvicorn_run.call_args
+    assert call_args.args[0] is mock_app or call_args.kwargs.get("app") is mock_app

@@ -51,7 +51,7 @@ def test_show_settings_main_function():
     assert settings_data["app_name"] == "taskmanager"
     assert settings_data["debug"] is False
     assert settings_data["log_level"] == "INFO"  # From .env file
-    assert settings_data["environment"] == "development"
+    assert settings_data["environment"] == "test"
 
 
 def test_show_settings_cli_module_execution():

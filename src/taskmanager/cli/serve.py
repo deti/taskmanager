@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 import uvicorn
 
-from taskmanager.main import app
+from taskmanager.api.app import create_app
 from taskmanager.settings import get_settings
 
 
@@ -16,25 +16,27 @@ logger = logging.getLogger(__name__)
 def serve(
     host: Annotated[
         str | None,
-        typer.Option("--host", "-h", help="Host address to bind the API server."),
+        typer.Option("--host", "-h", help="Host address to bind the API server (default: 127.0.0.1)."),
     ] = None,
     port: Annotated[
         int | None,
-        typer.Option("--port", "-p", help="Port number to bind the API server."),
+        typer.Option("--port", "-p", help="Port number to bind the API server (default: 8000)."),
     ] = None,
 ) -> None:
-    """Start the API server with configured host and port."""
+    """Start the FastAPI HTTP server.
+
+    Starts uvicorn server with settings from config file or environment variables.
+    Use --host and --port to override configured values.
+    """
     settings = get_settings()
 
     # Use CLI parameters if provided, otherwise fall back to settings
     server_host = host if host is not None else settings.host
     server_port = port if port is not None else settings.port
 
-    # Configure logging
-    logging.basicConfig(
-        level=settings.log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    # Create the FastAPI application instance
+    # Logging is configured via the app's lifespan context manager
+    app = create_app()
 
     logger.info(
         f"Starting API server on {server_host}:{server_port}",

@@ -23,6 +23,7 @@ dependencies = [
     "rich>=13.0",
     "pyyaml>=6.0",
     "httpx>=0.27",
+    "tomli-w>=1.0",
 ]
 
 [dependency-groups]
@@ -42,6 +43,10 @@ bugs = "https://github.com/deti/taskmanager"
 taskmanager = "taskmanager.cli:main"
 show-settings = "taskmanager.cli.show_settings:show_settings"
 serve = "taskmanager.cli.serve:serve"
+
+[project.entry-points."taskmanager.plugins"]
+retry = "taskmanager.plugins.builtin.retry:retry_plugin"
+timeout = "taskmanager.plugins.builtin.timeout:timeout_plugin"
 
 # Configure hatchling to find packages in src/
 [tool.hatch.build.targets.wheel]
@@ -95,7 +100,9 @@ lines-after-imports = 2
 known-first-party = ["taskmanager"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["RUF001"]
+"tests/**/*.py" = ["RUF001", "ARG002", "PLC0415"]
+"src/taskmanager/cli/*.py" = ["TRY301"]
+"src/taskmanager/api/**/*.py" = ["B008", "PLW0603", "PLC0415"]  # FastAPI patterns: Depends() in defaults, global state for app lifecycle, late imports for circular deps
 
 [tool.mypy]
 python_version = "3.12"
