@@ -7,8 +7,8 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
+from taskmanager.cli.formatters import format_task_table
 from taskmanager.database import get_db
 from taskmanager.exceptions import DuplicateTaskError, TaskNotFoundError
 from taskmanager.executor import execute_task
@@ -67,21 +67,9 @@ def list_command() -> None:
             console.print("[yellow]No tasks found.[/yellow]")
             return
 
-        table = Table(title="Registered Tasks")
-        table.add_column("Name", style="cyan", no_wrap=True)
-        table.add_column("Command", style="magenta")
-        table.add_column("Created At", style="green")
-
-        for task in tasks:
-            # Truncate command if too long
-            # Access all attributes INSIDE the session context to avoid DetachedInstanceError
-            cmd_display = (
-                task.command if len(task.command) <= 50 else task.command[:47] + "..."
-            )
-            created_at_str = task.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            table.add_row(task.name, cmd_display, created_at_str)
-
-    console.print(table)
+        table = format_task_table(tasks, no_color=False)
+        if table is not None:
+            console.print(table)
 
 
 @app.command()
