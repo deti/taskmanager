@@ -10,10 +10,10 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.table import Table
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from taskmanager.cli.formatters import format_relative_time, format_schedule_table
 from taskmanager.database import get_db
 from taskmanager.exceptions import (
     DuplicateScheduleError,
@@ -241,47 +241,9 @@ def list_command(
             console.print("[yellow]No schedules found.[/yellow]")
             return
 
-        # Create Rich table
-        table = Table(title="Task Schedules")
-        table.add_column("ID", style="cyan", no_wrap=True)
-        table.add_column("Task Name", style="magenta")
-        table.add_column("Trigger", style="blue")
-        table.add_column("Enabled", style="green")
-        table.add_column("Next Run", style="yellow")
-        table.add_column("Last Run", style="dim")
-
-        # Access all attributes inside session context to avoid DetachedInstanceError
-        for schedule in schedules:
-            schedule_id_short = schedule.id[:8]
-
-            # Look up task name
-            task_stmt = select(Task).where(Task.id == schedule.task_id)
-            task_result = session.execute(task_stmt)
-            task_obj = task_result.scalar_one_or_none()
-            task_name = task_obj.name if task_obj else "?"
-
-            # Format trigger
-            trigger_display = _format_trigger(schedule.trigger_type, schedule.trigger_config)
-
-            # Format enabled
-            enabled_display = "Yes" if schedule.enabled else "No"
-
-            # Format next_run
-            next_run_display = schedule.next_run_at.strftime("%Y-%m-%d %H:%M:%S") if schedule.next_run_at else "—"
-
-            # Format last_run
-            last_run_display = schedule.last_run_at.strftime("%Y-%m-%d %H:%M:%S") if schedule.last_run_at else "—"
-
-            table.add_row(
-                schedule_id_short,
-                task_name,
-                trigger_display,
-                enabled_display,
-                next_run_display,
-                last_run_display,
-            )
-
-    console.print(table)
+        table = format_schedule_table(schedules, session, no_color=False)
+        if table is not None:
+            console.print(table)
 
 
 @app.command()
@@ -318,10 +280,10 @@ def show(
         console.print(f"[dim]Trigger Type:[/dim] {trigger_type}")
         console.print(f"[dim]Trigger Config:[/dim] {json.dumps(trigger_config, indent=2)}")
         console.print(f"[dim]Enabled:[/dim] {'Yes' if enabled else 'No'}")
-        console.print(f"[dim]Next Run:[/dim] {next_run_at.strftime('%Y-%m-%d %H:%M:%S') if next_run_at else '—'}")
-        console.print(f"[dim]Last Run:[/dim] {last_run_at.strftime('%Y-%m-%d %H:%M:%S') if last_run_at else '—'}")
-        console.print(f"[dim]Created:[/dim] {created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-        console.print(f"[dim]Updated:[/dim] {updated_at.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        console.print(f"[dim]Next Run:[/dim] {format_relative_time(next_run_at)}")
+        console.print(f"[dim]Last Run:[/dim] {format_relative_time(last_run_at)}")
+        console.print(f"[dim]Created:[/dim] {format_relative_time(created_at)}")
+        console.print(f"[dim]Updated:[/dim] {format_relative_time(updated_at)}\n")
 
     except ScheduleNotFoundError as e:
         console_err.print(f"[red]Error:[/red] {e.message}")

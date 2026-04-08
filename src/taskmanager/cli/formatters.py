@@ -4,6 +4,7 @@ This module provides reusable table formatters, duration/time formatters,
 and console helpers for consistent Rich-formatted output across all CLI commands.
 """
 
+import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -11,7 +12,7 @@ from rich.console import Console
 from rich.table import Table
 from sqlalchemy import select
 
-from taskmanager.models import Run, RunStatus, Schedule, Task
+from taskmanager.models import Run, RunStatus, Schedule, Task, TriggerType
 
 
 if TYPE_CHECKING:
@@ -271,6 +272,43 @@ def format_run_table(
     return table
 
 
+def _format_trigger(trigger_type: TriggerType, trigger_config_json: str) -> str:  # noqa: PLR0911
+    """Format trigger for display in table or show command.
+
+    Parameters
+    ----------
+    trigger_type:
+        The trigger type enum.
+    trigger_config_json:
+        JSON string of trigger configuration.
+
+    Returns
+    -------
+    str
+        Formatted trigger display string.
+    """
+    config = json.loads(trigger_config_json)
+
+    if trigger_type == TriggerType.CRON:
+        return f"cron: {config.get('cron', '?')}"
+    if trigger_type == TriggerType.INTERVAL:
+        interval = config.get("interval", {})
+        # Format as shorthand if possible
+        if "seconds" in interval and len(interval) == 1:
+            return f"interval: {interval['seconds']}s"
+        if "minutes" in interval and len(interval) == 1:
+            return f"interval: {interval['minutes']}m"
+        if "hours" in interval and len(interval) == 1:
+            return f"interval: {interval['hours']}h"
+        if "days" in interval and len(interval) == 1:
+            return f"interval: {interval['days']}d"
+        # Complex interval, show full dict
+        return f"interval: {interval}"
+    if trigger_type == TriggerType.ONCE:
+        return f"once: {config.get('once', '?')}"
+    return "unknown"
+
+
 def format_schedule_table(
     schedules: list[Schedule], session: "Session", no_color: bool = False
 ) -> Table | None:
@@ -315,7 +353,7 @@ def format_schedule_table(
 
         # Format row data
         schedule_id_short = schedule.id[:8]
-        trigger_display = schedule.trigger_type.value
+        trigger_display = _format_trigger(schedule.trigger_type, schedule.trigger_config)
         enabled_display = "✓" if schedule.enabled else "✗"
         next_run_str = format_relative_time(schedule.next_run_at)
         last_run_str = format_relative_time(schedule.last_run_at)
