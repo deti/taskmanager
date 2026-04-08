@@ -41,7 +41,7 @@ taskmanager run show <run-id>       # Show run details (accepts short ID: first 
 taskmanager run logs <run-id>       # Show stdout and stderr for a run
 
 # Database initialization (required on first use)
-uv run python -c "from taskmanager.database import get_engine, Base; from taskmanager.models import Task, Run; Base.metadata.create_all(get_engine())"
+uv run python -c "from taskmanager.database import get_engine, Base; from taskmanager.models import Task, Run, Schedule, Hook; Base.metadata.create_all(get_engine())"
 ```
 
 ## Architecture
