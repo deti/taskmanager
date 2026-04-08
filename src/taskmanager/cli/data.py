@@ -16,7 +16,7 @@ from taskmanager.database import get_db
 from taskmanager.services import export_service
 
 
-app = typer.Typer(help="Data export and import commands")
+app = typer.Typer(help="Export and import tasks, schedules, and hooks as YAML.")
 console = Console()
 console_err = Console(stderr=True)
 
@@ -25,10 +25,14 @@ console_err = Console(stderr=True)
 def export(
     output: Annotated[
         Path,
-        typer.Option("--output", "-o", help="Output YAML file path"),
+        typer.Option("--output", "-o", help="Path to write YAML export file."),
     ],
 ) -> None:
-    """Export all tasks, schedules, and hooks to a YAML file."""
+    """Export all tasks, schedules, and hooks to a YAML file.
+
+    Creates a complete backup that can be restored with 'data import'.
+    The YAML format is human-readable and version-control friendly.
+    """
     try:
         with get_db() as session:
             data = export_service.export_all(session)
@@ -68,17 +72,22 @@ def export(
 def import_data(
     input_file: Annotated[
         Path,
-        typer.Option("--input", "-i", help="Input YAML file path"),
+        typer.Option("--input", "-i", help="Path to YAML file to import."),
     ],
     on_conflict: Annotated[
         str,
         typer.Option(
             "--on-conflict",
-            help="Conflict resolution strategy (skip|overwrite|error)",
+            help="How to handle existing records: skip, overwrite, or error (default: error).",
         ),
     ] = "error",
 ) -> None:
-    """Import tasks, schedules, and hooks from a YAML file."""
+    """Import tasks, schedules, and hooks from a YAML file.
+
+    Restores data exported with 'data export'. By default, errors on conflicts.
+    Use --on-conflict=skip to ignore existing records or --on-conflict=overwrite
+    to replace them.
+    """
     # Validate on_conflict value
     if on_conflict not in ("skip", "overwrite", "error"):
         console_err.print(

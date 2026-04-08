@@ -36,29 +36,33 @@ console_err = Console(stderr=True)
 
 @app.command()
 def add(
-    name: Annotated[str, typer.Option("--name", help="Unique hook name")],
-    on: Annotated[str, typer.Option("--on", help="Event type to listen for")],
+    name: Annotated[str, typer.Option("--name", help="Unique hook name for identification.")],
+    on: Annotated[str, typer.Option("--on", help="Event type to listen for (e.g., task.started, task.completed).")],
     action: Annotated[
         str,
         typer.Option(
             "--action",
-            help="Action type: shell, webhook, or log",
+            help="Action type: shell (run command), webhook (HTTP POST), or log (write to logs).",
         ),
     ],
     command: Annotated[
         str | None,
-        typer.Option("--command", help="Shell command (required for shell action)"),
+        typer.Option("--command", help="Shell command to execute (required when --action=shell)."),
     ] = None,
     url: Annotated[
         str | None,
-        typer.Option("--url", help="Webhook URL (required for webhook action)"),
+        typer.Option("--url", help="Webhook URL to POST to (required when --action=webhook)."),
     ] = None,
     task: Annotated[
         str | None,
-        typer.Option("--task", help="Optional task ID to filter events"),
+        typer.Option("--task", help="Optional task ID to filter events (omit for global hook)."),
     ] = None,
 ) -> None:
-    """Add a new hook to execute actions on events."""
+    """Create a new event hook to trigger actions automatically.
+
+    Hooks execute actions when events occur. For shell actions, specify --command.
+    For webhook actions, specify --url. Use --task to limit hook to specific task.
+    """
     # Normalize action type
     action_lower = action.lower()
 
@@ -132,10 +136,14 @@ def add(
 def list_command(
     disabled: Annotated[
         bool,
-        typer.Option("--disabled", help="Show only disabled hooks"),
+        typer.Option("--disabled", help="Show only disabled hooks (default: show all)."),
     ] = False,
 ) -> None:
-    """List all hooks."""
+    """Display all registered hooks in a table.
+
+    Shows hook name, event type, action type, task filter, and enabled status.
+    Use --disabled to see only disabled hooks.
+    """
     with get_db() as session:
         # If --disabled flag is set, show only disabled hooks
         if disabled:
@@ -172,9 +180,13 @@ def list_command(
 
 @app.command()
 def show(
-    name: Annotated[str, typer.Argument(help="Hook name to display")],
+    name: Annotated[str, typer.Argument(help="Name of hook to display.")],
 ) -> None:
-    """Show full details of a hook."""
+    """Display full details of a hook including action configuration.
+
+    Shows ID, name, event type, action type, action config (JSON), task filter,
+    enabled state, and timestamps.
+    """
     try:
         with get_db() as session:
             hook = get_hook_by_name(session, name)
@@ -226,9 +238,9 @@ def show(
 
 @app.command()
 def enable(
-    name: Annotated[str, typer.Argument(help="Hook name to enable")],
+    name: Annotated[str, typer.Argument(help="Name of hook to enable.")],
 ) -> None:
-    """Enable a hook."""
+    """Enable a disabled hook to start processing events."""
     try:
         with get_db() as session:
             hook = enable_hook(session, name)
@@ -244,9 +256,9 @@ def enable(
 
 @app.command()
 def disable(
-    name: Annotated[str, typer.Argument(help="Hook name to disable")],
+    name: Annotated[str, typer.Argument(help="Name of hook to disable.")],
 ) -> None:
-    """Disable a hook."""
+    """Disable a hook to stop processing events without deleting it."""
     try:
         with get_db() as session:
             hook = disable_hook(session, name)
@@ -262,13 +274,16 @@ def disable(
 
 @app.command()
 def remove(
-    name: Annotated[str, typer.Argument(help="Hook name to remove")],
+    name: Annotated[str, typer.Argument(help="Name of hook to delete.")],
     yes: Annotated[
         bool,
-        typer.Option("--yes", "-y", help="Skip confirmation prompt"),
+        typer.Option("--yes", "-y", help="Skip confirmation prompt."),
     ] = False,
 ) -> None:
-    """Remove a hook."""
+    """Delete a hook permanently.
+
+    Prompts for confirmation unless --yes flag is used.
+    """
     try:
         with get_db() as session:
             hook = get_hook_by_name(session, name)

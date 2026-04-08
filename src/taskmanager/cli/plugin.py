@@ -19,7 +19,10 @@ console_err = Console(stderr=True)
 
 @app.command(name="list")
 def list_command() -> None:
-    """List all discovered plugins."""
+    """Display all discovered plugins with load status.
+
+    Shows plugin name, version, status (loaded/error), and error message if any.
+    """
     pm = PluginManager()
     plugins = pm.list_plugins()
 
@@ -50,9 +53,12 @@ def list_command() -> None:
 
 @app.command()
 def info(
-    name: Annotated[str, typer.Argument(help="Plugin name to display")],
+    name: Annotated[str, typer.Argument(help="Name of plugin to display.")],
 ) -> None:
-    """Show detailed information about a plugin."""
+    """Display detailed information about a specific plugin.
+
+    Shows plugin name, version, module path, load status, and error details if any.
+    """
     pm = PluginManager()
     plugins = pm.list_plugins()
 

@@ -157,13 +157,17 @@ def _format_trigger(trigger_type: TriggerType, trigger_config_json: str) -> str:
 
 @app.command()
 def add(
-    task: Annotated[str, typer.Option("--task", help="Task name to schedule")],
-    cron: Annotated[str | None, typer.Option("--cron", help="Cron expression (e.g., '0 * * * *')")] = None,
-    every: Annotated[str | None, typer.Option("--every", help="Interval shorthand (e.g., '30m', '1h', '5s')")] = None,
-    once: Annotated[str | None, typer.Option("--once", help="ISO-8601 datetime for one-time execution")] = None,
-    enabled: Annotated[bool, typer.Option("--enabled/--disabled", help="Initial enabled state")] = True,
+    task: Annotated[str, typer.Option("--task", help="Name of task to schedule.")],
+    cron: Annotated[str | None, typer.Option("--cron", help="Cron expression (e.g., '0 * * * *' for hourly).")] = None,
+    every: Annotated[str | None, typer.Option("--every", help="Interval shorthand (e.g., '30m', '1h', '5s', '2d').")] = None,
+    once: Annotated[str | None, typer.Option("--once", help="ISO-8601 datetime for one-time execution.")] = None,
+    enabled: Annotated[bool, typer.Option("--enabled/--disabled", help="Enable schedule immediately (default: enabled).")] = True,
 ) -> None:
-    """Add a new schedule for a task."""
+    """Create a new schedule for automatic task execution.
+
+    Must specify exactly one trigger type: --cron, --every, or --once.
+    Use --every for simple intervals or --cron for complex schedules.
+    """
     # Validate mutual exclusivity
     trigger_count = sum([cron is not None, every is not None, once is not None])
     if trigger_count == 0:
@@ -220,14 +224,18 @@ def add(
 
 @app.command(name="list")
 def list_command(
-    task: Annotated[str | None, typer.Option("--task", help="Filter by task name")] = None,
-    enabled: Annotated[bool | None, typer.Option("--enabled/--disabled", help="Filter by enabled status")] = None,
+    task: Annotated[str | None, typer.Option("--task", help="Filter by task name.")] = None,
+    enabled: Annotated[bool | None, typer.Option("--enabled/--disabled", help="Filter by enabled/disabled status.")] = None,
     no_color: Annotated[
         bool,
-        typer.Option("--no-color", help="Disable colored output"),
+        typer.Option("--no-color", help="Disable colored output."),
     ] = False,
 ) -> None:
-    """List all schedules."""
+    """Display all registered schedules in a table.
+
+    Shows schedule ID, task name, trigger configuration, enabled state,
+    and next/last run times. Filter by task or enabled status.
+    """
     with get_db() as session:
         # If task filter provided, look up task ID
         task_id = None
@@ -252,9 +260,13 @@ def list_command(
 
 @app.command()
 def show(
-    id: Annotated[str, typer.Argument(help="Schedule ID (full or short)")],
+    id: Annotated[str, typer.Argument(help="Schedule ID (full UUID or short 8-char prefix).")],
 ) -> None:
-    """Show full details of a schedule."""
+    """Display full details of a schedule.
+
+    Shows complete trigger configuration, task name, enabled state,
+    next/last run times, and metadata. Accepts full or short ID.
+    """
     try:
         with get_db() as session:
             schedule = _get_schedule_by_id_or_short(session, id)
@@ -296,9 +308,9 @@ def show(
 
 @app.command()
 def enable(
-    id: Annotated[str, typer.Argument(help="Schedule ID (full or short)")],
+    id: Annotated[str, typer.Argument(help="Schedule ID (full UUID or short 8-char prefix).")],
 ) -> None:
-    """Enable a schedule."""
+    """Enable a disabled schedule to resume automatic execution."""
     try:
         with get_db() as session:
             schedule = _get_schedule_by_id_or_short(session, id)
@@ -314,9 +326,9 @@ def enable(
 
 @app.command()
 def disable(
-    id: Annotated[str, typer.Argument(help="Schedule ID (full or short)")],
+    id: Annotated[str, typer.Argument(help="Schedule ID (full UUID or short 8-char prefix).")],
 ) -> None:
-    """Disable a schedule."""
+    """Disable a schedule to pause automatic execution without deleting it."""
     try:
         with get_db() as session:
             schedule = _get_schedule_by_id_or_short(session, id)
@@ -332,10 +344,14 @@ def disable(
 
 @app.command()
 def remove(
-    id: Annotated[str, typer.Argument(help="Schedule ID (full or short)")],
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
+    id: Annotated[str, typer.Argument(help="Schedule ID (full UUID or short 8-char prefix).")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt.")] = False,
 ) -> None:
-    """Remove a schedule."""
+    """Delete a schedule permanently.
+
+    Prompts for confirmation unless --yes flag is used.
+    This does not affect the associated task or past runs.
+    """
     try:
         with get_db() as session:
             schedule = _get_schedule_by_id_or_short(session, id)

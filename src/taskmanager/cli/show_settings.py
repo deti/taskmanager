@@ -4,7 +4,10 @@ from taskmanager.settings import get_settings
 
 
 def show_settings() -> None:
-    """Print the app settings to stdout."""
+    """Display all application settings as JSON.
+
+    Shows the current values from all sources (defaults, config file, environment).
+    """
     settings = get_settings()
     print(settings.model_dump_json(indent=2))  # noqa: T201
 

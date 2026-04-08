@@ -16,14 +16,18 @@ logger = logging.getLogger(__name__)
 def serve(
     host: Annotated[
         str | None,
-        typer.Option("--host", "-h", help="Host address to bind the API server."),
+        typer.Option("--host", "-h", help="Host address to bind the API server (default: 127.0.0.1)."),
     ] = None,
     port: Annotated[
         int | None,
-        typer.Option("--port", "-p", help="Port number to bind the API server."),
+        typer.Option("--port", "-p", help="Port number to bind the API server (default: 8000)."),
     ] = None,
 ) -> None:
-    """Start the API server with configured host and port."""
+    """Start the FastAPI HTTP server.
+
+    Starts uvicorn server with settings from config file or environment variables.
+    Use --host and --port to override configured values.
+    """
     settings = get_settings()
 
     # Use CLI parameters if provided, otherwise fall back to settings

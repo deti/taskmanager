@@ -28,18 +28,22 @@ console_err = Console(stderr=True)
 
 @app.command()
 def add(
-    name: Annotated[str, typer.Option("--name", help="Unique task name")],
-    command: Annotated[str, typer.Option("--command", help="Shell command to execute")],
+    name: Annotated[str, typer.Option("--name", help="Unique task name (used for identification).")],
+    command: Annotated[str, typer.Option("--command", help="Shell command to execute.")],
     description: Annotated[
         str | None,
-        typer.Option("--description", help="Optional task description"),
+        typer.Option("--description", help="Optional human-readable description."),
     ] = None,
     shell: Annotated[
         str,
-        typer.Option("--shell", help="Shell to use for execution"),
+        typer.Option("--shell", help="Shell to use for execution (default: /bin/sh)."),
     ] = "/bin/sh",
 ) -> None:
-    """Add a new task to the registry."""
+    """Create a new task in the task registry.
+
+    Tasks are reusable command definitions that can be executed via 'task exec'
+    or scheduled for automatic execution.
+    """
     try:
         with get_db() as session:
             task = create_task(
@@ -61,10 +65,13 @@ def add(
 def list_command(
     no_color: Annotated[
         bool,
-        typer.Option("--no-color", help="Disable colored output"),
+        typer.Option("--no-color", help="Disable colored output."),
     ] = False,
 ) -> None:
-    """List all registered tasks."""
+    """Display all registered tasks in a table.
+
+    Shows task name, command (truncated if long), shell, and timestamps.
+    """
     with get_db() as session:
         tasks = list_tasks(session)
 
@@ -79,9 +86,12 @@ def list_command(
 
 @app.command()
 def show(
-    name: Annotated[str, typer.Argument(help="Task name to display")],
+    name: Annotated[str, typer.Argument(help="Name of task to display.")],
 ) -> None:
-    """Show full details of a task."""
+    """Display full details of a task including all metadata.
+
+    Shows ID, name, command, shell, description, and creation/update timestamps.
+    """
     try:
         with get_db() as session:
             task = get_task_by_name(session, name)
@@ -110,25 +120,29 @@ def show(
 
 @app.command()
 def edit(
-    name: Annotated[str, typer.Argument(help="Task name to edit")],
+    name: Annotated[str, typer.Argument(help="Current name of task to edit.")],
     new_name: Annotated[
         str | None,
-        typer.Option("--name", help="New task name"),
+        typer.Option("--name", help="New task name (for renaming)."),
     ] = None,
     command: Annotated[
         str | None,
-        typer.Option("--command", help="New command"),
+        typer.Option("--command", help="New shell command."),
     ] = None,
     description: Annotated[
         str | None,
-        typer.Option("--description", help="New description"),
+        typer.Option("--description", help="New description."),
     ] = None,
     shell: Annotated[
         str | None,
-        typer.Option("--shell", help="New shell"),
+        typer.Option("--shell", help="New shell path."),
     ] = None,
 ) -> None:
-    """Edit an existing task (partial updates supported)."""
+    """Modify an existing task.
+
+    Supports partial updates — only fields specified with options are changed.
+    Use --name to rename, --command to change the command, etc.
+    """
     try:
         with get_db() as session:
             task = get_task_by_name(session, name)
@@ -171,13 +185,17 @@ def edit(
 
 @app.command()
 def remove(
-    name: Annotated[str, typer.Argument(help="Task name to remove")],
+    name: Annotated[str, typer.Argument(help="Name of task to delete.")],
     yes: Annotated[
         bool,
-        typer.Option("--yes", "-y", help="Skip confirmation prompt"),
+        typer.Option("--yes", "-y", help="Skip confirmation prompt."),
     ] = False,
 ) -> None:
-    """Remove a task from the registry."""
+    """Delete a task from the registry.
+
+    Prompts for confirmation unless --yes flag is used. Note: this does not
+    delete associated run records or schedules.
+    """
     try:
         with get_db() as session:
             task = get_task_by_name(session, name)
@@ -205,9 +223,13 @@ def remove(
 
 @app.command()
 def exec(
-    name: Annotated[str, typer.Argument(help="Task name to execute")],
+    name: Annotated[str, typer.Argument(help="Name of task to execute.")],
 ) -> None:
-    """Execute a task by name."""
+    """Execute a registered task and record the run.
+
+    Runs the task's command and creates a run record with output capture.
+    Exit code matches the task's exit code. Use 'run logs' to view output.
+    """
     try:
         with get_db() as session:
             task = get_task_by_name(session, name)

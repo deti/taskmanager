@@ -17,7 +17,7 @@ from taskmanager.services import history_service
 from taskmanager.services.task_service import get_task_by_name
 
 
-app = typer.Typer(help="History management commands")
+app = typer.Typer(help="Manage run history — prune old records and view statistics.")
 console = Console()
 console_err = Console(stderr=True)
 
@@ -26,14 +26,18 @@ console_err = Console(stderr=True)
 def prune(
     older_than: Annotated[
         int | None,
-        typer.Option("--older-than", help="Days to retain (default from settings)"),
+        typer.Option("--older-than", help="Delete runs older than N days (default from settings)."),
     ] = None,
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", help="Show count without deleting"),
+        typer.Option("--dry-run", help="Preview deletions without making changes."),
     ] = False,
 ) -> None:
-    """Delete old run records based on retention policy."""
+    """Delete old run records to free up database space.
+
+    By default uses the retention policy from settings (history_retention_days).
+    Use --older-than to specify a custom retention period.
+    """
     try:
         with get_db() as session:
             count = history_service.prune_runs(
@@ -57,14 +61,18 @@ def prune(
 def stats(
     task_name: Annotated[
         str | None,
-        typer.Option("--task", help="Task name for per-task stats"),
+        typer.Option("--task", help="Show statistics for a specific task only."),
     ] = None,
     no_color: Annotated[
         bool,
-        typer.Option("--no-color", help="Disable colored output"),
+        typer.Option("--no-color", help="Disable colored output."),
     ] = False,
 ) -> None:
-    """Show execution statistics for runs."""
+    """Display execution statistics including success rate and average duration.
+
+    Shows aggregate statistics for all runs, or filter by task name with --task.
+    Includes top failed tasks table when showing global stats.
+    """
     try:
         with get_db() as session:
             # Resolve task name to task_id if provided

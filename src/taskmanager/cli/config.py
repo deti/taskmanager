@@ -66,10 +66,14 @@ DEFAULT_CONFIG_TEMPLATE = """\
 def init(
     force: Annotated[
         bool,
-        typer.Option("--force", "-f", help="Overwrite existing config file"),
+        typer.Option("--force", "-f", help="Overwrite existing config file if present."),
     ] = False,
 ) -> None:
-    """Initialize configuration file with default values and comments."""
+    """Create a new configuration file with default values and comments.
+
+    Creates ~/.taskmanager/config.toml with all available settings documented.
+    Use --force to overwrite an existing config file.
+    """
     config_path = CONFIG_FILE_PATH
     config_dir = config_path.parent
 
@@ -97,10 +101,10 @@ def init(
 
 @app.command()
 def show() -> None:
-    """Show current configuration with source annotations.
+    """Display current configuration values with their sources.
 
-    Displays each setting with its current value and the source
-    (default, config file, or environment variable).
+    Shows each setting's value and where it came from: built-in default,
+    config file, or environment variable. Helps debug configuration issues.
     """
     try:
         settings = get_settings()
@@ -162,7 +166,10 @@ def show() -> None:
 
 @app.command()
 def path() -> None:
-    """Display the path to the configuration file."""
+    """Print the path to the configuration file.
+
+    Shows the expected config file location, whether it exists or not.
+    """
     config_path = CONFIG_FILE_PATH
     if config_path.exists():
         console.print(f"{config_path}")
@@ -172,13 +179,13 @@ def path() -> None:
 
 @app.command()
 def set(  # noqa: PLR0912, PLR0915
-    key: Annotated[str, typer.Argument(help="Configuration key to set")],
-    value: Annotated[str, typer.Argument(help="Configuration value")],
+    key: Annotated[str, typer.Argument(help="Configuration key to set (e.g., log_level, debug).")],
+    value: Annotated[str, typer.Argument(help="New value for the configuration key.")],
 ) -> None:
-    """Set a configuration value in the TOML file.
+    """Update a configuration value in the TOML file.
 
-    The key must be a valid setting name. The value will be validated
-    against the setting's type before writing to the file.
+    The key must be a valid setting name. Values are validated against
+    the setting's type before writing. Restart or clear cache to apply changes.
     """
     settings = get_settings()
 

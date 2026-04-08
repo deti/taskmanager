@@ -92,9 +92,13 @@ def _status_color(status: RunStatus) -> str:
 
 @app.command()
 def exec(
-    command: Annotated[str, typer.Argument(help="Command to execute")],
+    command: Annotated[str, typer.Argument(help="Shell command to execute.")],
 ) -> None:
-    """Execute a command inline and show results immediately."""
+    """Execute a shell command inline and display output immediately.
+
+    Runs the command outside the task registry, creating a run record with
+    stdout/stderr capture. Useful for one-off commands or testing.
+    """
     try:
         with get_db() as session:
             # Execute the command
@@ -140,22 +144,26 @@ def exec(
 def list_command(
     task: Annotated[
         str | None,
-        typer.Option("--task", help="Filter by task name"),
+        typer.Option("--task", help="Filter by task name."),
     ] = None,
     status: Annotated[
         str | None,
-        typer.Option("--status", help="Filter by status (pending/running/success/failed/cancelled)"),
+        typer.Option("--status", help="Filter by status: pending, running, success, failed, or cancelled."),
     ] = None,
     limit: Annotated[
         int,
-        typer.Option("--limit", help="Maximum number of runs to display"),
+        typer.Option("--limit", help="Maximum number of runs to display (default: 20)."),
     ] = 20,
     no_color: Annotated[
         bool,
-        typer.Option("--no-color", help="Disable colored output"),
+        typer.Option("--no-color", help="Disable colored output."),
     ] = False,
 ) -> None:
-    """List task execution runs."""
+    """List task execution runs in reverse chronological order.
+
+    Shows the most recent runs first. Filter by task name or status.
+    Use --limit to control how many runs to display.
+    """
     try:
         with get_db() as session:
             # Build filters
@@ -201,9 +209,13 @@ def list_command(
 
 @app.command()
 def show(
-    run_id: Annotated[str, typer.Argument(help="Run ID (full UUID or first 8 chars)")],
+    run_id: Annotated[str, typer.Argument(help="Run ID (full UUID or short 8-char prefix).")],
 ) -> None:
-    """Show detailed information about a run."""
+    """Display detailed information about a specific run.
+
+    Shows status, command, exit code, duration, timestamps, and error message.
+    Accepts either full UUID or short 8-character prefix.
+    """
     try:
         with get_db() as session:
             run = _get_run_by_id_or_short(session, run_id)
@@ -252,9 +264,13 @@ def show(
 
 @app.command()
 def logs(
-    run_id: Annotated[str, typer.Argument(help="Run ID (full UUID or first 8 chars)")],
+    run_id: Annotated[str, typer.Argument(help="Run ID (full UUID or short 8-char prefix).")],
 ) -> None:
-    """Show stdout and stderr for a run."""
+    """Display stdout and stderr output from a run.
+
+    Shows the captured command output. Accepts either full UUID or
+    short 8-character prefix.
+    """
     try:
         with get_db() as session:
             run = _get_run_by_id_or_short(session, run_id)
