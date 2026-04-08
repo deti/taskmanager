@@ -59,6 +59,10 @@ def stats(
         str | None,
         typer.Option("--task", help="Task name for per-task stats"),
     ] = None,
+    no_color: Annotated[
+        bool,
+        typer.Option("--no-color", help="Disable colored output"),
+    ] = False,
 ) -> None:
     """Show execution statistics for runs."""
     try:
@@ -77,7 +81,7 @@ def stats(
 
         # Display main stats table
         stats_table = Table(title="Execution Statistics")
-        stats_table.add_column("Metric", style="cyan")
+        stats_table.add_column("Metric", style="cyan" if not no_color else None)
         stats_table.add_column("Value", justify="right")
 
         stats_table.add_row("Total Runs", str(stats_data["total_runs"]))
@@ -95,8 +99,8 @@ def stats(
         if most_failed:
             console.print()  # Blank line
             failed_table = Table(title="Top Failed Tasks")
-            failed_table.add_column("Task Name", style="magenta")
-            failed_table.add_column("Failures", justify="right", style="red")
+            failed_table.add_column("Task Name", style="magenta" if not no_color else None)
+            failed_table.add_column("Failures", justify="right", style="red" if not no_color else None)
 
             for item in most_failed:
                 failed_table.add_row(

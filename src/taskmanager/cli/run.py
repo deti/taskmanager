@@ -150,6 +150,10 @@ def list_command(
         int,
         typer.Option("--limit", help="Maximum number of runs to display"),
     ] = 20,
+    no_color: Annotated[
+        bool,
+        typer.Option("--no-color", help="Disable colored output"),
+    ] = False,
 ) -> None:
     """List task execution runs."""
     try:
@@ -186,7 +190,7 @@ def list_command(
                 console.print("[yellow]No runs found.[/yellow]")
                 return
 
-            table = format_run_table(runs, session, no_color=False)
+            table = format_run_table(runs, session, no_color=no_color)
             if table is not None:
                 console.print(table)
 

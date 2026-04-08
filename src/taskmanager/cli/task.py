@@ -58,7 +58,12 @@ def add(
 
 
 @app.command(name="list")
-def list_command() -> None:
+def list_command(
+    no_color: Annotated[
+        bool,
+        typer.Option("--no-color", help="Disable colored output"),
+    ] = False,
+) -> None:
     """List all registered tasks."""
     with get_db() as session:
         tasks = list_tasks(session)
@@ -67,7 +72,7 @@ def list_command() -> None:
             console.print("[yellow]No tasks found.[/yellow]")
             return
 
-        table = format_task_table(tasks, no_color=False)
+        table = format_task_table(tasks, no_color=no_color)
         if table is not None:
             console.print(table)
 

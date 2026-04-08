@@ -222,6 +222,10 @@ def add(
 def list_command(
     task: Annotated[str | None, typer.Option("--task", help="Filter by task name")] = None,
     enabled: Annotated[bool | None, typer.Option("--enabled/--disabled", help="Filter by enabled status")] = None,
+    no_color: Annotated[
+        bool,
+        typer.Option("--no-color", help="Disable colored output"),
+    ] = False,
 ) -> None:
     """List all schedules."""
     with get_db() as session:
@@ -241,7 +245,7 @@ def list_command(
             console.print("[yellow]No schedules found.[/yellow]")
             return
 
-        table = format_schedule_table(schedules, session, no_color=False)
+        table = format_schedule_table(schedules, session, no_color=no_color)
         if table is not None:
             console.print(table)
 
