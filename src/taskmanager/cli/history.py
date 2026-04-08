@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from taskmanager.cli.formatters import format_duration
 from taskmanager.database import get_db
 from taskmanager.exceptions import TaskNotFoundError
 from taskmanager.services import history_service
@@ -84,10 +85,8 @@ def stats(
 
         # Handle avg_duration_ms (can be None)
         avg_duration = stats_data.get("avg_duration_ms")
-        if avg_duration is not None:
-            stats_table.add_row("Avg Duration", f"{avg_duration:.0f} ms")
-        else:
-            stats_table.add_row("Avg Duration", "-")
+        avg_duration_int = int(avg_duration) if avg_duration is not None else None
+        stats_table.add_row("Avg Duration", format_duration(avg_duration_int))
 
         console.print(stats_table)
 
