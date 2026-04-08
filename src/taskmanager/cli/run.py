@@ -4,15 +4,14 @@ This module provides the run sub-command with operations for viewing
 task execution runs, their status, and logs.
 """
 
-from datetime import datetime
 from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.table import Table
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from taskmanager.cli.formatters import format_duration, format_relative_time, format_run_table
 from taskmanager.database import get_db
 from taskmanager.exceptions import RunNotFoundError, TaskNotFoundError
 from taskmanager.executor import execute_inline
@@ -66,42 +65,6 @@ def _get_run_by_id_or_short(session: Session, run_id: str) -> Run:
 
     # Not found
     raise RunNotFoundError(run_id)
-
-
-def _format_duration(duration_ms: int | None) -> str:
-    """Format duration in milliseconds to human-readable string.
-
-    Parameters
-    ----------
-    duration_ms:
-        Duration in milliseconds, or None.
-
-    Returns
-    -------
-    str
-        Formatted duration string (e.g., "1.234s") or "-" if None.
-    """
-    if duration_ms is None:
-        return "-"
-    return f"{duration_ms / 1000:.3f}s"
-
-
-def _format_timestamp(dt: datetime | None) -> str:
-    """Format datetime to human-readable string.
-
-    Parameters
-    ----------
-    dt:
-        Datetime object or None.
-
-    Returns
-    -------
-    str
-        Formatted timestamp string or "-" if None.
-    """
-    if dt is None:
-        return "-"
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _status_color(status: RunStatus) -> str:
@@ -223,41 +186,9 @@ def list_command(
                 console.print("[yellow]No runs found.[/yellow]")
                 return
 
-            # Build table
-            table = Table(title="Task Execution Runs")
-            table.add_column("ID", style="cyan", no_wrap=True)
-            table.add_column("Task", style="magenta")
-            table.add_column("Status", no_wrap=True)
-            table.add_column("Duration", justify="right")
-            table.add_column("Started At", style="dim")
-
-            # We need to join with tasks to get task names
-            for run in runs:
-                # Get task name for this run
-                if run.task_id is None:
-                    task_name = "(inline)"
-                else:
-                    task_stmt = select(Task).where(Task.id == run.task_id)
-                    task_result = session.execute(task_stmt)
-                    task_obj = task_result.scalar_one_or_none()
-                    task_name = task_obj.name if task_obj else "(unknown)"
-
-                # Format row data
-                run_id_short = run.id[:8]
-                status_str = run.status.value
-                status_colored = f"[{_status_color(run.status)}]{status_str}[/{_status_color(run.status)}]"
-                duration_str = _format_duration(run.duration_ms)
-                timestamp_str = _format_timestamp(run.started_at)
-
-                table.add_row(
-                    run_id_short,
-                    task_name,
-                    status_colored,
-                    duration_str,
-                    timestamp_str,
-                )
-
-        console.print(table)
+            table = format_run_table(runs, session, no_color=False)
+            if table is not None:
+                console.print(table)
 
     except TaskNotFoundError as e:
         console_err.print(f"[red]Error:[/red] {e.message}")
@@ -301,9 +232,9 @@ def show(
         if exit_code is not None:
             console.print(f"[dim]Exit Code:[/dim] {exit_code}")
 
-        console.print(f"[dim]Duration:[/dim] {_format_duration(duration_ms)}")
-        console.print(f"[dim]Started At:[/dim] {_format_timestamp(started_at)}")
-        console.print(f"[dim]Finished At:[/dim] {_format_timestamp(finished_at)}")
+        console.print(f"[dim]Duration:[/dim] {format_duration(duration_ms)}")
+        console.print(f"[dim]Started At:[/dim] {format_relative_time(started_at)}")
+        console.print(f"[dim]Finished At:[/dim] {format_relative_time(finished_at)}")
 
         if error_message:
             console.print(f"[dim]Error:[/dim] [red]{error_message}[/red]")
