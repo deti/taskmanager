@@ -50,6 +50,11 @@ class Settings(BaseSettings):
         default=8000,
         description="API server port number.",
     )
+    db_url: str = Field(
+        default_factory=lambda: "sqlite:///"
+        + str(Path.home() / ".taskmanager" / "taskmanager.db"),
+        description="Database URL.",
+    )
     # Pydantic v2 settings config
     model_config = SettingsConfigDict(
         # Read .env from the project root
